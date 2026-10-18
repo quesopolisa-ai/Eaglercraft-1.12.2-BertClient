@@ -42,6 +42,11 @@ public class Module {
 	}
 
 	public void setToggled(boolean toggled) {
+		if (toggled && !SingleplayerWorld.isModuleAllowed(this)) {
+			SingleplayerWorld.notifyBlocked(this.name);
+			return;
+		}
+		boolean wasToggled = this.toggled;
 		this.toggled = toggled;
 
 		if (this.toggled) {
@@ -49,19 +54,19 @@ public class Module {
 		} else {
 			this.onDisable();
 		}
-	}
-
-	public void toggle() {
-		this.toggled = !this.toggled;
-
-		if (this.toggled) {
-			this.onEnable();
-		} else {
-			this.onDisable();
+		if (wasToggled != this.toggled && baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null) {
+			baseclient.gg.dhyeybg.baseclient.BaseClient.instance.notifyModuleToggle(this, this.toggled);
 		}
 	}
 
+	public void toggle() {
+		setToggled(!this.toggled);
+	}
+
 	public void onEnable() {
+	}
+
+	public void onClickGuiEnable() {
 	}
 
 	public void onDisable() {
@@ -71,6 +76,9 @@ public class Module {
 	}
 
 	public void onRender2D() {
+	}
+
+	public void onRender3D(float partialTicks) {
 	}
 
 	public boolean onVelocity(int entityId) {

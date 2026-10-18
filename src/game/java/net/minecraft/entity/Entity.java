@@ -718,7 +718,10 @@ public abstract class Entity implements ICommandSender {
 			double d11 = this.posY;
 			double d1 = this.posZ;
 
-			if (this.isInWeb) {
+			boolean noWebEnabled = this instanceof net.minecraft.client.entity.EntityPlayerSP
+					&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+					&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("No Web");
+			if (this.isInWeb && !noWebEnabled) {
 				this.isInWeb = false;
 				p_70091_2_ *= 0.25D;
 				p_70091_4_ *= 0.05000000074505806D;
@@ -726,24 +729,41 @@ public abstract class Entity implements ICommandSender {
 				this.motionX = 0.0D;
 				this.motionY = 0.0D;
 				this.motionZ = 0.0D;
+			} else if (noWebEnabled) {
+				this.isInWeb = false;
 			}
 
 			double d2 = p_70091_2_;
 			double d3 = p_70091_4_;
 			double d4 = p_70091_6_;
+			double safeWalkStep = 0.05D;
+			baseclient.gg.dhyeybg.baseclient.BaseClient baseClient =
+					baseclient.gg.dhyeybg.baseclient.BaseClient.instance;
+			if (this instanceof net.minecraft.client.entity.EntityPlayerSP && baseClient != null
+					&& baseClient.moduleManager != null && baseClient.isModuleToggled("Safe Walk")) {
+				baseclient.gg.dhyeybg.baseclient.module.movement.SafeWalk safeWalk =
+						(baseclient.gg.dhyeybg.baseclient.module.movement.SafeWalk)
+								baseClient.moduleManager.getModule("Safe Walk");
+				if (safeWalk != null) {
+					safeWalkStep = safeWalk.getEdgeStep();
+				}
+			}
 
-			if ((x == MoverType.SELF || x == MoverType.PLAYER) && this.onGround && this.isSneaking()
+			if ((x == MoverType.SELF || x == MoverType.PLAYER) && this.onGround
+					&& (this.isSneaking() || this instanceof net.minecraft.client.entity.EntityPlayerSP
+							&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+							&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleToggled("Safe Walk"))
 					&& this instanceof EntityPlayer) {
-				for (double d5 = 0.05D; p_70091_2_ != 0.0D && this.world
+				for (; p_70091_2_ != 0.0D && this.world
 						.getCollisionBoxes(this,
 								this.getEntityBoundingBox().offset(p_70091_2_, (double) (-this.stepHeight), 0.0D))
 						.isEmpty(); d2 = p_70091_2_) {
-					if (p_70091_2_ < 0.05D && p_70091_2_ >= -0.05D) {
+					if (p_70091_2_ < safeWalkStep && p_70091_2_ >= -safeWalkStep) {
 						p_70091_2_ = 0.0D;
 					} else if (p_70091_2_ > 0.0D) {
-						p_70091_2_ -= 0.05D;
+						p_70091_2_ -= safeWalkStep;
 					} else {
-						p_70091_2_ += 0.05D;
+						p_70091_2_ += safeWalkStep;
 					}
 				}
 
@@ -751,12 +771,12 @@ public abstract class Entity implements ICommandSender {
 						.getCollisionBoxes(this,
 								this.getEntityBoundingBox().offset(0.0D, (double) (-this.stepHeight), p_70091_6_))
 						.isEmpty(); d4 = p_70091_6_) {
-					if (p_70091_6_ < 0.05D && p_70091_6_ >= -0.05D) {
+					if (p_70091_6_ < safeWalkStep && p_70091_6_ >= -safeWalkStep) {
 						p_70091_6_ = 0.0D;
 					} else if (p_70091_6_ > 0.0D) {
-						p_70091_6_ -= 0.05D;
+						p_70091_6_ -= safeWalkStep;
 					} else {
-						p_70091_6_ += 0.05D;
+						p_70091_6_ += safeWalkStep;
 					}
 				}
 
@@ -764,22 +784,22 @@ public abstract class Entity implements ICommandSender {
 						&& this.world.getCollisionBoxes(this,
 								this.getEntityBoundingBox().offset(p_70091_2_, (double) (-this.stepHeight), p_70091_6_))
 								.isEmpty(); d4 = p_70091_6_) {
-					if (p_70091_2_ < 0.05D && p_70091_2_ >= -0.05D) {
+					if (p_70091_2_ < safeWalkStep && p_70091_2_ >= -safeWalkStep) {
 						p_70091_2_ = 0.0D;
 					} else if (p_70091_2_ > 0.0D) {
-						p_70091_2_ -= 0.05D;
+						p_70091_2_ -= safeWalkStep;
 					} else {
-						p_70091_2_ += 0.05D;
+						p_70091_2_ += safeWalkStep;
 					}
 
 					d2 = p_70091_2_;
 
-					if (p_70091_6_ < 0.05D && p_70091_6_ >= -0.05D) {
+					if (p_70091_6_ < safeWalkStep && p_70091_6_ >= -safeWalkStep) {
 						p_70091_6_ = 0.0D;
 					} else if (p_70091_6_ > 0.0D) {
-						p_70091_6_ -= 0.05D;
+						p_70091_6_ -= safeWalkStep;
 					} else {
-						p_70091_6_ += 0.05D;
+						p_70091_6_ += safeWalkStep;
 					}
 				}
 			}

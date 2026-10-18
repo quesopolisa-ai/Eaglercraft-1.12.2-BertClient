@@ -556,7 +556,9 @@ public abstract class EntityPlayer extends EntityLivingBase {
 				axisalignedbb = this.getEntityBoundingBox().union(this.getRidingEntity().getEntityBoundingBox())
 						.expand(1.0D, 0.0D, 1.0D);
 			} else {
-				axisalignedbb = this.getEntityBoundingBox().expand(1.0D, 0.5D, 1.0D);
+				double pickupRange = baseclient.gg.dhyeybg.baseclient.module.player.LongPickupRange.getExtraRange();
+				axisalignedbb = this.getEntityBoundingBox().expand(1.0D + pickupRange,
+						0.5D + pickupRange, 1.0D + pickupRange);
 			}
 
 			List<Entity> list = this.world.getEntitiesWithinAABBExcludingEntity(this, axisalignedbb);
@@ -1616,6 +1618,19 @@ public abstract class EntityPlayer extends EntityLivingBase {
 	 */
 	public void jump() {
 		super.jump();
+		if (this instanceof net.minecraft.client.entity.EntityPlayerSP
+				&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null) {
+			baseclient.gg.dhyeybg.baseclient.BaseClient client =
+					baseclient.gg.dhyeybg.baseclient.BaseClient.instance;
+			if (client.isModuleEnabled("HighJump")) {
+				((baseclient.gg.dhyeybg.baseclient.module.movement.HighJump)
+						client.moduleManager.getModule("HighJump")).applyJump(this);
+			}
+			if (client.isModuleEnabled("LongJump")) {
+				((baseclient.gg.dhyeybg.baseclient.module.movement.LongJump)
+						client.moduleManager.getModule("LongJump")).applyJump(this);
+			}
+		}
 		this.addStat(StatList.JUMP);
 
 		if (this.isSprinting()) {

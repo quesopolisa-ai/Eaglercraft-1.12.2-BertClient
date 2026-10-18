@@ -37,11 +37,20 @@ public class ModuleButton extends Component {
 
 	@Override
 	public void renderComponent() {
-		Gui.drawRect(parent.parent.getX() + 2, parent.parent.getY() + offset, parent.parent.getX() + parent.parent.getWidth(), parent.parent.getY() + offset + 12, this.hovered ? 0xFF222222 : 0xFF111111);
-		Gui.drawRect(parent.parent.getX(), parent.parent.getY() + offset, parent.parent.getX() + 2, parent.parent.getY() + offset + 12, 0xFF111111);
+		int left = parent.parent.getX();
+		int top = parent.parent.getY() + offset;
+		int right = left + parent.parent.getWidth();
+		Gui.drawRect(left + 2, top, right, top + 14, this.hovered ? 0xFF292331 : 0xFF15151C);
+		Gui.drawRect(left, top, left + 2, top + 14, 0xFF202027);
+		String value = "< " + set.getValString() + " >";
+		int valueWidth = Minecraft.getMinecraft().fontRendererObj.getStringWidth(value);
 		GlStateManager.pushMatrix();
-		GlStateManager.scale(0.5f, 0.5f, 0.5f);
-		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow("Mode: " + set.getValString(), (parent.parent.getX() + 7) * 2, (parent.parent.getY() + offset + 2) * 2 + 5, -1);
+		GlStateManager.scale(0.75F, 0.75F, 1.0F);
+		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(set.getName(),
+				(int) ((left + 7) / 0.75F), (int) ((top + 3) / 0.75F), 0xFFBEBEC8);
+		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(value,
+				(int) ((right - valueWidth * 0.75F - 5) / 0.75F),
+				(int) ((top + 3) / 0.75F), 0xFFE8BAFF);
 		GlStateManager.popMatrix();
 	}
 
@@ -63,6 +72,6 @@ public class ModuleButton extends Component {
 	}
 
 	public boolean isMouseOnButton(int x, int y) {
-		return x > this.x && x < this.x + 88 && y > this.y && y < this.y + 12;
+		return x > this.x && x < this.x + parent.parent.getWidth() && y > this.y && y < this.y + 14;
 	}
 }

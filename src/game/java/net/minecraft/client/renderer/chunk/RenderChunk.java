@@ -122,6 +122,13 @@ public class RenderChunk {
 			for (BlockPos blockpos$mutableblockpos : BlockPos.getAllInBoxMutable(blockpos, blockpos1)) {
 				IBlockState iblockstate = regionrendercache.getBlockStateFaster(blockpos$mutableblockpos);
 				Block block = iblockstate.getBlock();
+				baseclient.gg.dhyeybg.baseclient.BaseClient baseClient =
+						baseclient.gg.dhyeybg.baseclient.BaseClient.instance;
+				if (baseClient != null && baseClient.isModuleEnabled("XRay")
+						&& !((baseclient.gg.dhyeybg.baseclient.module.utilities.XRay)
+								baseClient.moduleManager.getModule("XRay")).shouldRender(iblockstate)) {
+					continue;
+				}
 
 				if (iblockstate.isOpaqueCube()) {
 					lvt_9_1_.setOpaqueCube(blockpos$mutableblockpos);

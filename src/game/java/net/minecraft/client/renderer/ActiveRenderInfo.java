@@ -6,7 +6,6 @@ import net.lax1dude.eaglercraft.opengl.RealOpenGLEnums;
 import net.minecraft.block.BlockLiquid;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -49,7 +48,7 @@ public class ActiveRenderInfo {
 	 * Updates the current render info and camera location based on entity look
 	 * angles and 1st/3rd person view mode
 	 */
-	public static void updateRenderInfo(EntityPlayer entityplayerIn, boolean p_74583_1_) {
+	public static void updateRenderInfo(Entity entityIn, boolean p_74583_1_) {
 		GlStateManager.getFloat(RealOpenGLEnums.GL_MODELVIEW_MATRIX, MODELVIEW);
 		GlStateManager.getFloat(RealOpenGLEnums.GL_PROJECTION_MATRIX, PROJECTION);
 		EaglercraftGPU.glGetInteger(RealOpenGLEnums.GL_VIEWPORT, VIEWPORT);
@@ -58,8 +57,8 @@ public class ActiveRenderInfo {
 		GlStateManager.gluUnProject(f, f1, 0.0F, MODELVIEW, PROJECTION, VIEWPORT, OBJECTCOORDS);
 		position = new Vec3d((double) OBJECTCOORDS[0], (double) OBJECTCOORDS[1], (double) OBJECTCOORDS[2]);
 		int i = p_74583_1_ ? 1 : 0;
-		float f2 = entityplayerIn.rotationPitch;
-		float f3 = entityplayerIn.rotationYaw;
+		float f2 = entityIn.rotationPitch;
+		float f3 = entityIn.rotationYaw;
 		rotationX = MathHelper.cos(f3 * 0.017453292F) * (float) (1 - i * 2);
 		rotationZ = MathHelper.sin(f3 * 0.017453292F) * (float) (1 - i * 2);
 		rotationYZ = -rotationZ * MathHelper.sin(f2 * 0.017453292F) * (float) (1 - i * 2);

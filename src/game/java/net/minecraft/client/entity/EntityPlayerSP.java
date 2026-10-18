@@ -272,31 +272,52 @@ public class EntityPlayerSP extends AbstractClientPlayer {
 		}
 
 		if (this.isCurrentViewEntity()) {
+			boolean reportGrounded = this.onGround;
+			if (!reportGrounded && baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+					&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("NoFall")) {
+				reportGrounded = ((baseclient.gg.dhyeybg.baseclient.module.movement.NoFall)
+						baseclient.gg.dhyeybg.baseclient.BaseClient.instance.moduleManager.getModule("NoFall"))
+								.shouldReportGrounded(this);
+			}
 			AxisAlignedBB axisalignedbb = this.getEntityBoundingBox();
 			double d0 = this.posX - this.lastReportedPosX;
 			double d1 = axisalignedbb.minY - this.lastReportedPosY;
 			double d2 = this.posZ - this.lastReportedPosZ;
-			double d3 = (double) (this.rotationYaw - this.lastReportedYaw);
-			double d4 = (double) (this.rotationPitch - this.lastReportedPitch);
+			float packetYaw = this.rotationYaw;
+			float packetPitch = this.rotationPitch;
+			if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+					&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("Bow Silent Aim")) {
+				baseclient.gg.dhyeybg.baseclient.module.combat.BowSilentAim bowSilentAim =
+						(baseclient.gg.dhyeybg.baseclient.module.combat.BowSilentAim)
+								baseclient.gg.dhyeybg.baseclient.BaseClient.instance.moduleManager
+										.getModule("Bow Silent Aim");
+				float[] silentRotation = bowSilentAim.getSilentRotation();
+				if (silentRotation != null) {
+					packetYaw = silentRotation[0];
+					packetPitch = silentRotation[1];
+				}
+			}
+			double d3 = (double) (packetYaw - this.lastReportedYaw);
+			double d4 = (double) (packetPitch - this.lastReportedPitch);
 			++this.positionUpdateTicks;
 			boolean flag2 = d0 * d0 + d1 * d1 + d2 * d2 > 9.0E-4D || this.positionUpdateTicks >= 20;
 			boolean flag3 = d3 != 0.0D || d4 != 0.0D;
 
 			if (this.isRiding()) {
 				this.connection.sendPacket(new CPacketPlayer.PositionRotation(this.motionX, -999.0D, this.motionZ,
-						this.rotationYaw, this.rotationPitch, this.onGround));
+						packetYaw, packetPitch, reportGrounded));
 				flag2 = false;
 			} else if (flag2 && flag3) {
 				this.connection.sendPacket(new CPacketPlayer.PositionRotation(this.posX, axisalignedbb.minY, this.posZ,
-						this.rotationYaw, this.rotationPitch, this.onGround));
+						packetYaw, packetPitch, reportGrounded));
 			} else if (flag2) {
 				this.connection.sendPacket(
-						new CPacketPlayer.Position(this.posX, axisalignedbb.minY, this.posZ, this.onGround));
+						new CPacketPlayer.Position(this.posX, axisalignedbb.minY, this.posZ, reportGrounded));
 			} else if (flag3) {
 				this.connection
-						.sendPacket(new CPacketPlayer.Rotation(this.rotationYaw, this.rotationPitch, this.onGround));
-			} else if (this.prevOnGround != this.onGround) {
-				this.connection.sendPacket(new CPacketPlayer(this.onGround));
+						.sendPacket(new CPacketPlayer.Rotation(packetYaw, packetPitch, reportGrounded));
+			} else if (this.prevOnGround != this.onGround || reportGrounded != this.prevOnGround) {
+				this.connection.sendPacket(new CPacketPlayer(reportGrounded));
 			}
 
 			if (flag2) {
@@ -307,8 +328,8 @@ public class EntityPlayerSP extends AbstractClientPlayer {
 			}
 
 			if (flag3) {
-				this.lastReportedYaw = this.rotationYaw;
-				this.lastReportedPitch = this.rotationPitch;
+				this.lastReportedYaw = packetYaw;
+				this.lastReportedPitch = packetPitch;
 			}
 
 			this.prevOnGround = this.onGround;
@@ -338,6 +359,9 @@ public class EntityPlayerSP extends AbstractClientPlayer {
 	 * Sends a chat message from the player.
 	 */
 	public void sendChatMessage(String message) {
+		if (baseclient.gg.dhyeybg.baseclient.module.utilities.Waypoints.handleChatCommand(message)) {
+			return;
+		}
 		if (this.connection.getNetworkManager() instanceof SingleplayerNetworkManager && message.startsWith("/eagskull")) {
 			this.mc.eagskullCommand.openFileChooser();
 		} else {
@@ -840,9 +864,16 @@ public class EntityPlayerSP extends AbstractClientPlayer {
 		this.mc.func_193032_ao().func_193293_a(this.movementInput);
 
 		if (this.isHandActive() && !this.isRiding()) {
-			this.movementInput.moveStrafe *= 0.2F;
-			this.movementInput.field_192832_b *= 0.2F;
-			this.sprintToggleTimer = 0;
+			float slowdown = 0.2F;
+			if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+					&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("No Slow")) {
+				slowdown = ((baseclient.gg.dhyeybg.baseclient.module.movement.NoSlow)
+						baseclient.gg.dhyeybg.baseclient.BaseClient.instance.moduleManager
+								.getModule("No Slow")).getSlowdown();
+			}
+			this.movementInput.moveStrafe *= slowdown;
+			this.movementInput.field_192832_b *= slowdown;
+			if (slowdown > 0.0F) this.sprintToggleTimer = 0;
 		}
 
 		boolean flag3 = false;
@@ -1002,8 +1033,29 @@ public class EntityPlayerSP extends AbstractClientPlayer {
 	public void moveEntity(MoverType x, double p_70091_2_, double p_70091_4_, double p_70091_6_) {
 		double d0 = this.posX;
 		double d1 = this.posZ;
+		boolean waterWalk = p_70091_4_ < 0.0D && baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+				&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("Jesus")
+				&& !this.isSneaking() && this.isOverWaterSurface();
+		if (waterWalk) p_70091_4_ = 0.0D;
 		super.moveEntity(x, p_70091_2_, p_70091_4_, p_70091_6_);
+		if (waterWalk) {
+			this.onGround = true;
+			this.motionY = 0.0D;
+			this.fallDistance = 0.0F;
+		}
 		this.updateAutoJump((float) (this.posX - d0), (float) (this.posZ - d1));
+	}
+
+	private boolean isOverWaterSurface() {
+		double footY = this.getEntityBoundingBox().minY;
+		net.minecraft.util.math.BlockPos pos =
+				new net.minecraft.util.math.BlockPos(this.posX, footY - 0.05D, this.posZ);
+		net.minecraft.block.state.IBlockState state = this.world.getBlockState(pos);
+		if (!(state.getBlock() instanceof net.minecraft.block.BlockLiquid)
+				|| state.getMaterial() != net.minecraft.block.material.Material.WATER) return false;
+		int level = ((Integer) state.getValue(net.minecraft.block.BlockLiquid.LEVEL)).intValue();
+		double waterSurface = pos.getY() + 1.0D - net.minecraft.block.BlockLiquid.getLiquidHeightPercent(level);
+		return Math.abs(footY - waterSurface) < 0.12D;
 	}
 
 	public boolean isAutoJumpEnabled() {

@@ -274,6 +274,8 @@ public class EntityRenderer implements IResourceManagerReloadListener {
 				Vec3d vec3d = entity.getPositionEyes(partialTicks);
 				boolean flag = false;
 				double d1 = d0;
+				boolean reachEnabled = baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+						&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("Reach");
 
 				if (this.mc.playerController.extendedReach()) {
 					d1 = 6.0D;
@@ -331,7 +333,8 @@ public class EntityRenderer implements IResourceManagerReloadListener {
 					}
 				}
 
-				if (this.pointedEntity != null && flag && vec3d.distanceTo(vec3d3) > 3.0D) {
+				if (this.pointedEntity != null && flag
+						&& vec3d.distanceTo(vec3d3) > (reachEnabled ? d0 : 3.0D)) {
 					this.pointedEntity = null;
 					this.mc.objectMouseOver = new RayTraceResult(RayTraceResult.Type.MISS, vec3d3, (EnumFacing) null,
 							new BlockPos(vec3d3));
@@ -405,6 +408,12 @@ public class EntityRenderer implements IResourceManagerReloadListener {
 	}
 
 	private void hurtCameraEffect(float partialTicks) {
+		if (baseclient.gg.dhyeybg.baseclient.module.render.CameraEffects.shouldDisableHurtCamera()) {
+			return;
+		}
+		if (baseclient.gg.dhyeybg.baseclient.module.render.NoRender.isEffectDisabled("HurtCam")) {
+			return;
+		}
 		if (this.mc.getRenderViewEntity() instanceof EntityLivingBase) {
 			EntityLivingBase entitylivingbase = (EntityLivingBase) this.mc.getRenderViewEntity();
 			float f = (float) entitylivingbase.hurtTime - partialTicks;
@@ -896,11 +905,23 @@ public class EntityRenderer implements IResourceManagerReloadListener {
 				this.smoothCamPartialTicks = partialTicks;
 				f2 = this.smoothCamFilterX * f4;
 				f3 = this.smoothCamFilterY * f4;
-				this.mc.player.setAngles(f2, f3 * (float) i);
+				if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+						&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("Freecam")
+						&& this.mc.getRenderViewEntity() != null) {
+					this.mc.getRenderViewEntity().setAngles(f2, f3 * (float) i);
+				} else {
+					this.mc.player.setAngles(f2, f3 * (float) i);
+				}
 			} else {
 				this.smoothCamYaw = 0.0F;
 				this.smoothCamPitch = 0.0F;
-				this.mc.player.setAngles(f2, f3 * (float) i);
+				if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+						&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("Freecam")
+						&& this.mc.getRenderViewEntity() != null) {
+					this.mc.getRenderViewEntity().setAngles(f2, f3 * (float) i);
+				} else {
+					this.mc.player.setAngles(f2, f3 * (float) i);
+				}
 			}
 		}
 
@@ -1121,7 +1142,8 @@ public class EntityRenderer implements IResourceManagerReloadListener {
 		this.updateFogColor(partialTicks);
 		GlStateManager.clear(16640);
 		this.setupCameraTransform(partialTicks, pass);
-		ActiveRenderInfo.updateRenderInfo(this.mc.player, this.mc.gameSettings.thirdPersonView == 2);
+		ActiveRenderInfo.updateRenderInfo(this.mc.getRenderViewEntity(),
+				this.mc.gameSettings.thirdPersonView == 2);
 		ClippingHelperImpl.getInstance();
 		ICamera icamera = new Frustum();
 		Entity entity = this.mc.getRenderViewEntity();
@@ -1210,10 +1232,14 @@ public class EntityRenderer implements IResourceManagerReloadListener {
 
 		if (!this.debugView) {
 			this.enableLightmap();
-			particlemanager.renderLitParticles(entity, partialTicks);
+			if (!baseclient.gg.dhyeybg.baseclient.module.render.NoParticles.isEnabled()) {
+				particlemanager.renderLitParticles(entity, partialTicks);
+			}
 			RenderHelper.disableStandardItemLighting();
 			this.setupFog(0, partialTicks);
-			particlemanager.renderParticles(entity, partialTicks);
+			if (!baseclient.gg.dhyeybg.baseclient.module.render.NoParticles.isEnabled()) {
+				particlemanager.renderParticles(entity, partialTicks);
+			}
 			this.disableLightmap();
 		}
 
@@ -1243,11 +1269,16 @@ public class EntityRenderer implements IResourceManagerReloadListener {
 			this.renderCloudsCheck(renderglobal, partialTicks, pass, d0, d1, d2);
 		}
 
+		if (pass != 1 && baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null) {
+			baseclient.gg.dhyeybg.baseclient.BaseClient.instance.onRender3D(partialTicks);
+		}
+
 		if (this.renderHand) {
 			GlStateManager.clear(256);
 			this.renderHand(partialTicks, pass);
 		}
-	}
+
+}
 
 	private void renderCloudsCheck(RenderGlobal renderGlobalIn, float partialTicks, int pass, double p_180437_4_,
 			double p_180437_6_, double p_180437_8_) {
@@ -1347,6 +1378,9 @@ public class EntityRenderer implements IResourceManagerReloadListener {
 	 * Render rain and snow
 	 */
 	protected void renderRainSnow(float partialTicks) {
+		if (baseclient.gg.dhyeybg.baseclient.module.render.NoRender.isEffectDisabled("Rain")) {
+			return;
+		}
 		float f = this.mc.world.getRainStrength(partialTicks);
 
 		if (f > 0.0F) {

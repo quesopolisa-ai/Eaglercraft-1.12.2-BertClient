@@ -1059,6 +1059,7 @@ public class Minecraft implements IThreadListener {
 	}
 
 	private void clickMouse() {
+		baseclient.gg.dhyeybg.baseclient.module.render.HUD.recordClick();
 		if (this.leftClickCounter <= 0) {
 			if (this.objectMouseOver == null) {
 				LOGGER.error("Null returned as 'hitResult', this shouldn't happen!");
@@ -1099,6 +1100,7 @@ public class Minecraft implements IThreadListener {
 	 * Called when user clicked he's mouse right button (place)
 	 */
 	private void rightClickMouse() {
+		baseclient.gg.dhyeybg.baseclient.module.render.HUD.recordClick();
 		if (!this.playerController.getIsHittingBlock()) {
 			this.rightClickDelayTimer = 4;
 
@@ -1206,7 +1208,15 @@ public class Minecraft implements IThreadListener {
 		}
 
 		if (this.rightClickDelayTimer > 0) {
-			--this.rightClickDelayTimer;
+			if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+					&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("FastPlace")) {
+				int delay = ((baseclient.gg.dhyeybg.baseclient.module.player.FastPlace)
+						baseclient.gg.dhyeybg.baseclient.BaseClient.instance.moduleManager.getModule("FastPlace"))
+								.getDelayTicks();
+				this.rightClickDelayTimer = Math.min(this.rightClickDelayTimer, delay);
+			} else {
+				--this.rightClickDelayTimer;
+			}
 		}
 
 		if (!this.isGamePaused) {
@@ -1753,6 +1763,10 @@ public class Minecraft implements IThreadListener {
 	 */
 	public void loadWorld(WorldClient worldClientIn, String loadingMessage) {
 		if (worldClientIn == null) {
+			if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+					&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.shouldSaveOnDisconnect()) {
+				baseclient.gg.dhyeybg.baseclient.BaseClient.instance.saveConfig();
+			}
 			NetHandlerPlayClient nethandlerplayclient = this.getConnection();
 
 			if (nethandlerplayclient != null) {
@@ -1787,6 +1801,9 @@ public class Minecraft implements IThreadListener {
 
 		this.mcSoundHandler.stopSounds();
 		this.world = worldClientIn;
+		if (worldClientIn != null && baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null) {
+			baseclient.gg.dhyeybg.baseclient.BaseClient.instance.onWorldLoaded();
+		}
 
 		if (this.renderGlobal != null) {
 			this.renderGlobal.setWorldAndLoadRenderers(worldClientIn);
@@ -1883,6 +1900,14 @@ public class Minecraft implements IThreadListener {
 	 * Called when user clicked he's mouse middle button (pick block)
 	 */
 	private void middleClickMouse() {
+		if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+				&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("Middle Click Friend")
+				&& this.objectMouseOver != null
+				&& this.objectMouseOver.entityHit instanceof net.minecraft.entity.player.EntityPlayer) {
+			baseclient.gg.dhyeybg.baseclient.module.player.MiddleClickFriend.toggleTarget(
+					(net.minecraft.entity.player.EntityPlayer) this.objectMouseOver.entityHit);
+			return;
+		}
 		if (this.objectMouseOver != null && this.objectMouseOver.typeOfHit != RayTraceResult.Type.MISS) {
 			boolean flag = this.player.capabilities.isCreativeMode;
 			TileEntity tileentity = null;
@@ -2223,6 +2248,14 @@ public class Minecraft implements IThreadListener {
 
 	public Entity getRenderViewEntity() {
 		return this.renderViewEntity;
+	}
+
+	public float getClientTickLength() {
+		return this.timer.getTickLength();
+	}
+
+	public void setClientTickLength(float tickLength) {
+		this.timer.setTickLength(tickLength);
 	}
 
 	public void setRenderViewEntity(Entity viewingEntity) {

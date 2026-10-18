@@ -295,6 +295,7 @@ public class EntityBoat extends Entity {
 
 			if (this.world.isRemote) {
 				this.controlBoat();
+				baseclient.gg.dhyeybg.baseclient.module.utilities.BoatFly.applyControls(this);
 				this.world.sendPacketToServer(new CPacketSteerBoat(this.getPaddleState(0), this.getPaddleState(1)));
 			}
 

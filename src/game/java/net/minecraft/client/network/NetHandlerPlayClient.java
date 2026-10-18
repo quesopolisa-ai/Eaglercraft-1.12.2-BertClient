@@ -404,6 +404,10 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient {
 		this.gameController.player.setReducedDebug(packetIn.isReducedDebugInfo());
 		this.gameController.playerController.setGameType(packetIn.getGameType());
 		this.gameController.gameSettings.sendSettingsToServer();
+		if (this.gameController.getCurrentServerData() != null) {
+			baseclient.gg.dhyeybg.baseclient.AutoLogin
+					.onServerJoin(this.gameController.getCurrentServerData().serverIP);
+		}
 		this.netManager.sendPacket(new CPacketCustomPayload("MC|Brand",
 				(new PacketBuffer(Unpooled.buffer())).writeString(ClientBrandRetriever.getClientModName())));
 		WebViewOverlayController.setPacketSendCallback(this::webViewSendHandler);
@@ -612,8 +616,21 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient {
 		Entity entity = this.clientWorldController.getEntityByID(packetIn.getEntityID());
 
 		if (entity != null) {
-			entity.setVelocity((double) packetIn.getMotionX() / 8000.0D, (double) packetIn.getMotionY() / 8000.0D,
-					(double) packetIn.getMotionZ() / 8000.0D);
+			double horizontalScale = 1.0D;
+			double verticalScale = 1.0D;
+			baseclient.gg.dhyeybg.baseclient.BaseClient baseClient =
+					baseclient.gg.dhyeybg.baseclient.BaseClient.instance;
+			if (entity == this.gameController.player && baseClient != null
+					&& baseClient.isModuleEnabled("Velocity")) {
+				baseclient.gg.dhyeybg.baseclient.module.combat.Velocity velocity =
+						(baseclient.gg.dhyeybg.baseclient.module.combat.Velocity)
+								baseClient.moduleManager.getModule("Velocity");
+				horizontalScale = velocity.getHorizontalScale();
+				verticalScale = velocity.getVerticalScale();
+			}
+			entity.setVelocity((double) packetIn.getMotionX() / 8000.0D * horizontalScale,
+					(double) packetIn.getMotionY() / 8000.0D * verticalScale,
+					(double) packetIn.getMotionZ() / 8000.0D * horizontalScale);
 		}
 	}
 
@@ -917,6 +934,15 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient {
 	 * Prints a chatmessage in the chat GUI
 	 */
 	public void handleChat(SPacketChat packetIn) {
+		baseclient.gg.dhyeybg.baseclient.module.misc.AutoGG.inspectChat(packetIn.getChatComponent());
+		if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+				&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("Chat Timestamps")
+				&& packetIn.func_192590_c() == net.minecraft.util.text.ChatType.CHAT) {
+			this.gameController.ingameGUI.func_191742_a(packetIn.func_192590_c(),
+					baseclient.gg.dhyeybg.baseclient.module.render.ChatTimestamps
+							.addTimestamp(packetIn.getChatComponent()));
+			return;
+		}
 		this.gameController.ingameGUI.func_191742_a(packetIn.func_192590_c(), packetIn.getChatComponent());
 	}
 
@@ -1067,6 +1093,7 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient {
 			if (packetIn.getOpCode() == 21) {
 				this.gameController.getSoundHandler().playSound(new GuardianSound((EntityGuardian) entity));
 			} else if (packetIn.getOpCode() == 35) {
+				baseclient.gg.dhyeybg.baseclient.module.render.TotemCounter.recordPop(entity);
 				int i = 40;
 				this.gameController.effectRenderer.func_191271_a(entity, EnumParticleTypes.TOTEM, 30);
 				this.clientWorldController.playSound(entity.posX, entity.posY, entity.posZ, SoundEvents.ITEM_TOTEM_USE,
@@ -1928,6 +1955,9 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient {
 	 * randomized displacement according to specified bounds
 	 */
 	public void handleParticles(SPacketParticles packetIn) {
+		if (baseclient.gg.dhyeybg.baseclient.module.render.NoCluster.shouldSuppress(packetIn.getParticleType())) {
+			return;
+		}
 		if (packetIn.getParticleCount() == 0) {
 			double d0 = (double) (packetIn.getParticleSpeed() * packetIn.getXOffset());
 			double d2 = (double) (packetIn.getParticleSpeed() * packetIn.getYOffset());

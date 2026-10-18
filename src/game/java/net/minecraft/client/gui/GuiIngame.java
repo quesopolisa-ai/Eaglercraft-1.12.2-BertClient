@@ -189,7 +189,9 @@ public class GuiIngame extends Gui {
 		this.mc.getTextureManager().bindTexture(ICONS);
 		GlStateManager.enableBlend();
 		GlStateManager.tryBlendFuncSeparate(RealOpenGLEnums.GL_SRC_ALPHA, RealOpenGLEnums.GL_ONE_MINUS_SRC_ALPHA, 1, 0);
-		this.overlayBoss.renderBossHealth();
+		if (!baseclient.gg.dhyeybg.baseclient.module.render.NoRender.isEffectDisabled("BossBar")) {
+			this.overlayBoss.renderBossHealth();
+		}
 		GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
 		this.mc.getTextureManager().bindTexture(ICONS);
 

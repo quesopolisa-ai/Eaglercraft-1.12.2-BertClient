@@ -94,4 +94,5 @@ public class SPacketEntityVelocity implements Packet<INetHandlerPlayClient> {
 	public int getMotionZ() {
 		return this.motionZ;
 	}
+
 }

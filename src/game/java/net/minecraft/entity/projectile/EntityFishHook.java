@@ -442,6 +442,10 @@ public class EntityFishHook extends Entity {
 	public void readEntityFromNBT(NBTTagCompound compound) {
 	}
 
+	public boolean isCatchable() {
+		return this.ticksCatchable > 0;
+	}
+
 	public int handleHookRetraction() {
 		if (!this.world.isRemote && this.angler != null) {
 			int i = 0;

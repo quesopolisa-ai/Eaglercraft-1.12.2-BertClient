@@ -3,7 +3,6 @@ package baseclient.gg.dhyeybg.baseclient.Clickgui.component.components.Sub;
 import baseclient.gg.dhyeybg.baseclient.Clickgui.component.Component;
 import baseclient.gg.dhyeybg.baseclient.Clickgui.component.components.Button;
 import net.lax1dude.eaglercraft.Keyboard;
-import net.lax1dude.eaglercraft.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 
@@ -30,12 +29,18 @@ public class Keybind extends Component {
 
 	@Override
 	public void renderComponent() {
-		Gui.drawRect(parent.parent.getX() + 2, parent.parent.getY() + offset, parent.parent.getX() + parent.parent.getWidth(), parent.parent.getY() + offset + 12, this.hovered ? 0xFF222222 : 0xFF111111);
-		Gui.drawRect(parent.parent.getX(), parent.parent.getY() + offset, parent.parent.getX() + 2, parent.parent.getY() + offset + 12, 0xFF111111);
-		GlStateManager.pushMatrix();
-		GlStateManager.scale(0.5f, 0.5f, 0.5f);
-		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(binding ? "Press a key..." : ("Key: " + Keyboard.getKeyName(this.parent.mod.getKey())), (parent.parent.getX() + 7) * 2, (parent.parent.getY() + offset + 2) * 2 + 5, -1);
-		GlStateManager.popMatrix();
+		int left = parent.parent.getX();
+		int top = parent.parent.getY() + offset;
+		int right = left + parent.parent.getWidth();
+		Gui.drawRect(left + 2, top, right, top + 14,
+				binding ? 0xFF34223F : (this.hovered ? 0xFF292331 : 0xFF15151C));
+		Gui.drawRect(left, top, left + 2, top + 14, 0xFF202027);
+		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(binding ? "Press a key..." : "Keybind",
+				left + 7, top + 3, binding ? 0xFFE8BAFF : 0xFFBEBEC8);
+		String keyName = Keyboard.getKeyName(this.parent.mod.getKey());
+		int keyWidth = Minecraft.getMinecraft().fontRendererObj.getStringWidth(keyName);
+		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(keyName,
+				right - keyWidth - 5, top + 3, 0xFFE2E2E8);
 	}
 
 	@Override
@@ -61,6 +66,6 @@ public class Keybind extends Component {
 	}
 
 	public boolean isMouseOnButton(int x, int y) {
-		return x > this.x && x < this.x + 88 && y > this.y && y < this.y + 12;
+		return x > this.x && x < this.x + parent.parent.getWidth() && y > this.y && y < this.y + 14;
 	}
 }

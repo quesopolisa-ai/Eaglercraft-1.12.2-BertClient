@@ -235,20 +235,33 @@ public class PlatformApplication {
 
 	private static class FileFilterExt extends FileFilter {
 
-		private final String extension;
+		private final String[] extensions;
 
 		private FileFilterExt(String ext) {
-			extension = ext;
+			extensions = ext.split(",");
 		}
 
 		@Override
 		public boolean accept(File f) {
-			return f.isDirectory() || f.getName().endsWith("." + extension);
+			if (f.isDirectory()) {
+				return true;
+			}
+			String name = f.getName();
+			for (String extension : extensions) {
+				if (name.toLowerCase().endsWith("." + extension.trim().toLowerCase())) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 		@Override
 		public String getDescription() {
-			return extension + " files";
+			return extDescription();
+		}
+
+		private String extDescription() {
+			return String.join(", ", extensions) + " files";
 		}
 
 	}

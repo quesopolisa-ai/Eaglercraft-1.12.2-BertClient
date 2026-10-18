@@ -289,8 +289,17 @@ public class PlayerControllerMP {
 				this.isHittingBlock = false;
 				return false;
 			} else {
-				this.curBlockDamageMP += iblockstate.getPlayerRelativeBlockHardness(this.mc.player,
+				float blockHardness = iblockstate.getPlayerRelativeBlockHardness(this.mc.player,
 						this.mc.player.world, posBlock);
+				if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+						&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("Packet Mine")) {
+					baseclient.gg.dhyeybg.baseclient.module.player.PacketMine packetMine =
+							(baseclient.gg.dhyeybg.baseclient.module.player.PacketMine)
+									baseclient.gg.dhyeybg.baseclient.BaseClient.instance.moduleManager
+											.getModule("Packet Mine");
+					blockHardness *= packetMine.getBreakSpeed();
+				}
+				this.curBlockDamageMP += blockHardness;
 
 				if (this.stepSoundTickCounter % 4.0F == 0.0F) {
 					SoundType soundtype = block.getSoundType();
@@ -326,6 +335,11 @@ public class PlayerControllerMP {
 	 * player reach distance = 4F
 	 */
 	public float getBlockReachDistance() {
+		if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+				&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.isModuleEnabled("Reach")) {
+			return ((baseclient.gg.dhyeybg.baseclient.module.combat.Reach)
+					baseclient.gg.dhyeybg.baseclient.BaseClient.instance.moduleManager.getModule("Reach")).getDistance();
+		}
 		return this.currentGameType.isCreative() ? 5.0F : 4.5F;
 	}
 
@@ -475,7 +489,9 @@ public class PlayerControllerMP {
 	 * Attacks an entity
 	 */
 	public void attackEntity(EntityPlayer playerIn, Entity targetEntity) {
+		baseclient.gg.dhyeybg.baseclient.module.combat.WTap.onAttack();
 		this.syncCurrentPlayItem();
+		baseclient.gg.dhyeybg.baseclient.module.combat.Criticals.onAttack(targetEntity);
 		this.connection.sendPacket(new CPacketUseEntity(targetEntity));
 
 		if (this.currentGameType != GameType.SPECTATOR) {

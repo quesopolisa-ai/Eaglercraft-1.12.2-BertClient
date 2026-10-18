@@ -46,6 +46,13 @@ public class Setting {
 		this.mode = "Slider";
 	}
 
+	/** A number the player types into a text box in the ClickGUI. Values are clamped to [min, max]. */
+	public static Setting textBox(String name, Module parent, double dval, double min, double max){
+		Setting setting = new Setting(name, parent, dval, min, max, false);
+		setting.mode = "Number";
+		return setting;
+	}
+
 	public String getName(){
 		return name;
 	}
@@ -82,6 +89,10 @@ public class Setting {
 	}
 
 	public void setValDouble(double in){
+		in = Math.max(this.min, Math.min(this.max, in));
+		if(this.onlyint){
+			in = (int) in;
+		}
 		this.dval = in;
 	}
 
@@ -103,6 +114,10 @@ public class Setting {
 
 	public boolean isSlider(){
 		return this.mode.equalsIgnoreCase("Slider");
+	}
+
+	public boolean isNumber(){
+		return this.mode.equalsIgnoreCase("Number");
 	}
 
 	public boolean onlyInt(){

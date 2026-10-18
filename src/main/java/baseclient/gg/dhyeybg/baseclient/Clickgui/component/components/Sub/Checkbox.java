@@ -3,7 +3,6 @@ package baseclient.gg.dhyeybg.baseclient.Clickgui.component.components.Sub;
 import baseclient.gg.dhyeybg.baseclient.Clickgui.component.Component;
 import baseclient.gg.dhyeybg.baseclient.Clickgui.component.components.Button;
 import baseclient.gg.dhyeybg.baseclient.settings.Setting;
-import net.lax1dude.eaglercraft.opengl.GlStateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 
@@ -26,15 +25,17 @@ public class Checkbox extends Component {
 
 	@Override
 	public void renderComponent() {
-		Gui.drawRect(parent.parent.getX() + 2, parent.parent.getY() + offset, parent.parent.getX() + parent.parent.getWidth(), parent.parent.getY() + offset + 12, this.hovered ? 0xFF222222 : 0xFF111111);
-		Gui.drawRect(parent.parent.getX(), parent.parent.getY() + offset, parent.parent.getX() + 2, parent.parent.getY() + offset + 12, 0xFF111111);
-		GlStateManager.pushMatrix();
-		GlStateManager.scale(0.5f, 0.5f, 0.5f);
-		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(this.op.getName(), (parent.parent.getX() + 10 + 4) * 2 + 5, (parent.parent.getY() + offset + 2) * 2 + 4, -1);
-		GlStateManager.popMatrix();
-		Gui.drawRect(parent.parent.getX() + 3 + 4, parent.parent.getY() + offset + 3, parent.parent.getX() + 9 + 4, parent.parent.getY() + offset + 9, 0xFF999999);
-		if (this.op.getValBoolean())
-			Gui.drawRect(parent.parent.getX() + 4 + 4, parent.parent.getY() + offset + 4, parent.parent.getX() + 8 + 4, parent.parent.getY() + offset + 8, 0xFF666666);
+		int left = parent.parent.getX();
+		int top = parent.parent.getY() + offset;
+		int right = left + parent.parent.getWidth();
+		Gui.drawRect(left + 2, top, right, top + 14, this.hovered ? 0xFF292331 : 0xFF15151C);
+		Gui.drawRect(left, top, left + 2, top + 14, 0xFF202027);
+		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(this.op.getName(), left + 7, top + 3, 0xFFE2E2E8);
+		int boxLeft = right - 17;
+		Gui.drawRect(boxLeft, top + 4, boxLeft + 9, top + 13, 0xFF777780);
+		if (this.op.getValBoolean()) {
+			Gui.drawRect(boxLeft + 2, top + 6, boxLeft + 7, top + 11, 0xFFBD62FF);
+		}
 	}
 
 	@Override
@@ -57,6 +58,6 @@ public class Checkbox extends Component {
 	}
 
 	public boolean isMouseOnButton(int x, int y) {
-		return x > this.x && x < this.x + 88 && y > this.y && y < this.y + 12;
+		return x > this.x && x < this.x + parent.parent.getWidth() && y > this.y && y < this.y + 14;
 	}
 }

@@ -941,6 +941,10 @@ public abstract class World implements IBlockAccess {
 
 	public void spawnParticle(EnumParticleTypes particleType, double xCoord, double yCoord, double zCoord,
 			double xSpeed, double ySpeed, double zSpeed, int... parameters) {
+		if (this.isRemote
+				&& baseclient.gg.dhyeybg.baseclient.module.render.NoCluster.shouldSuppress(particleType)) {
+			return;
+		}
 		this.spawnParticle(particleType.getParticleID(), particleType.getShouldIgnoreRange(), xCoord, yCoord, zCoord,
 				xSpeed, ySpeed, zSpeed, parameters);
 	}
@@ -955,6 +959,10 @@ public abstract class World implements IBlockAccess {
 
 	public void spawnParticle(EnumParticleTypes particleType, boolean ignoreRange, double xCoord, double yCoord,
 			double zCoord, double xSpeed, double ySpeed, double zSpeed, int... parameters) {
+		if (this.isRemote
+				&& baseclient.gg.dhyeybg.baseclient.module.render.NoCluster.shouldSuppress(particleType)) {
+			return;
+		}
 		this.spawnParticle(particleType.getParticleID(), particleType.getShouldIgnoreRange() || ignoreRange, xCoord,
 				yCoord, zCoord, xSpeed, ySpeed, zSpeed, parameters);
 	}

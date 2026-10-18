@@ -57,6 +57,7 @@ public class GuiTextField extends Gui {
 
 	/** True if this textbox is visible */
 	private boolean visible = true;
+	private boolean passwordField;
 	private GuiPageButtonList.GuiResponder guiResponder;
 	private Predicate<String> validator = Predicates.<String>alwaysTrue();
 
@@ -430,7 +431,8 @@ public class GuiTextField extends Gui {
 				i -= 4;
 			}
 
-			String s = this.fontRendererInstance.trimStringToWidth(this.text.substring(this.lineScrollOffset),
+			String displayText = this.passwordField ? repeat('*', this.text.length()) : this.text;
+			String s = this.fontRendererInstance.trimStringToWidth(displayText.substring(this.lineScrollOffset),
 					this.getWidth());
 			this.setCursorPosition(this.fontRendererInstance.trimStringToWidth(s, i).length() + this.lineScrollOffset);
 			return true;
@@ -454,7 +456,8 @@ public class GuiTextField extends Gui {
 			int i = this.isEnabled ? this.enabledColor : this.disabledColor;
 			int j = this.cursorPosition - this.lineScrollOffset;
 			int k = this.selectionEnd - this.lineScrollOffset;
-			String s = this.fontRendererInstance.trimStringToWidth(this.text.substring(this.lineScrollOffset),
+			String displayText = this.passwordField ? repeat('*', this.text.length()) : this.text;
+			String s = this.fontRendererInstance.trimStringToWidth(displayText.substring(this.lineScrollOffset),
 					this.getWidth());
 			boolean flag = j >= 0 && j <= s.length();
 			boolean flag1 = this.isFocused && this.cursorCounter / 6 % 2 == 0 && flag;
@@ -498,6 +501,18 @@ public class GuiTextField extends Gui {
 				this.drawCursorVertical(k1, i1 - 1, l1 - 1, i1 + 1 + this.fontRendererInstance.FONT_HEIGHT);
 			}
 		}
+	}
+
+	public void setPasswordField(boolean passwordField) {
+		this.passwordField = passwordField;
+	}
+
+	private static String repeat(char value, int count) {
+		StringBuilder result = new StringBuilder(count);
+		for (int i = 0; i < count; ++i) {
+			result.append(value);
+		}
+		return result.toString();
 	}
 
 	/**

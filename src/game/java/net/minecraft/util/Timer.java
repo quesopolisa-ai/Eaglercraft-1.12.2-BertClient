@@ -22,6 +22,16 @@ public class Timer {
 		this.lastSyncSysClock = Minecraft.getSystemTime();
 	}
 
+	public float getTickLength() {
+		return this.field_194149_e;
+	}
+
+	public void setTickLength(float tickLength) {
+		if (tickLength > 0.0F && !Float.isNaN(tickLength) && !Float.isInfinite(tickLength)) {
+			this.field_194149_e = tickLength;
+		}
+	}
+
 	/**
 	 * Updates all fields of the Timer using the current time
 	 */

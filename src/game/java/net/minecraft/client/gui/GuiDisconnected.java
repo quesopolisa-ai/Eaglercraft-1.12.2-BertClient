@@ -80,6 +80,16 @@ public class GuiDisconnected extends GuiScreen {
 		if (pkt != null && pkt.length > 0) {
 			mc.displayGuiScreen(
 					GuiScreenIntegratedServerBusy.createException(this, "singleplayer.failed.serverCrash", pkt));
+			return;
+		}
+		if (baseclient.gg.dhyeybg.baseclient.BaseClient.instance != null
+				&& baseclient.gg.dhyeybg.baseclient.BaseClient.instance.moduleManager != null) {
+			net.minecraft.client.gui.GuiScreen moduleScreen = this;
+			baseclient.gg.dhyeybg.baseclient.module.Module module = baseclient.gg.dhyeybg.baseclient.BaseClient.instance.moduleManager
+					.getModule("AutoReconnect");
+			if (module instanceof baseclient.gg.dhyeybg.baseclient.module.player.AutoReconnect) {
+				((baseclient.gg.dhyeybg.baseclient.module.player.AutoReconnect) module).reconnectFrom(moduleScreen);
+			}
 		}
 	}
 

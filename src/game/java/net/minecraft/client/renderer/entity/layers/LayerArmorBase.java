@@ -38,6 +38,9 @@ public abstract class LayerArmorBase<T extends ModelBase> implements LayerRender
 
 	public void doRenderLayer(EntityLivingBase entitylivingbaseIn, float limbSwing, float limbSwingAmount,
 			float partialTicks, float ageInTicks, float netHeadYaw, float headPitch, float scale) {
+		if (baseclient.gg.dhyeybg.baseclient.module.render.NoRender.isEffectDisabled("Armor")) {
+			return;
+		}
 		this.renderArmorLayer(entitylivingbaseIn, limbSwing, limbSwingAmount, partialTicks, ageInTicks, netHeadYaw,
 				headPitch, scale, EntityEquipmentSlot.CHEST);
 		this.renderArmorLayer(entitylivingbaseIn, limbSwing, limbSwingAmount, partialTicks, ageInTicks, netHeadYaw,

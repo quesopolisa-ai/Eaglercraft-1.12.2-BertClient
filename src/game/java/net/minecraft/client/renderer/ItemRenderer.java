@@ -528,6 +528,9 @@ public class ItemRenderer {
 	 * Renders the fire on the screen for first person mode. Arg: partialTickTime
 	 */
 	private void renderFireInFirstPerson() {
+		if (baseclient.gg.dhyeybg.baseclient.module.render.NoRender.isEffectDisabled("FireOverlay")) {
+			return;
+		}
 		Tessellator tessellator = Tessellator.getInstance();
 		WorldRenderer bufferbuilder = tessellator.getBuffer();
 		GlStateManager.color(1.0F, 1.0F, 1.0F, 0.9F);

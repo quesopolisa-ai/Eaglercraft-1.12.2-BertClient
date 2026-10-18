@@ -315,6 +315,25 @@ public class PlatformApplication {
 	@JSBody(params = { "inputElement", "enable" }, script = "inputElement.multiple = enable;")
 	private static native void setMultipleSelection(HTMLInputElement inputElement, boolean enable);
 
+	private static String getAcceptSelection(String extensions) {
+		StringBuilder accept = new StringBuilder();
+		String[] parts = extensions.split(",");
+		for (String part : parts) {
+			String extension = part.trim();
+			if (extension.isEmpty()) {
+				continue;
+			}
+			if (accept.length() > 0) {
+				accept.append(',');
+			}
+			if (!extension.startsWith(".")) {
+				accept.append('.');
+			}
+			accept.append(extension);
+		}
+		return accept.toString();
+	}
+
 	public static void displayFileChooser(String mime, String ext) {
 		clearFileChooserResult();
 		final HTMLDocument doc = PlatformRuntime.doc != null ? PlatformRuntime.doc : Window.current().getDocument();
@@ -341,7 +360,7 @@ public class PlatformApplication {
 			final HTMLInputElement inputElement = fileChooserElement = (HTMLInputElement) doc.createElement("input");
 			inputElement.setType("file");
 			if(mime == null) {
-				setAcceptSelection(inputElement, "." + ext);
+				setAcceptSelection(inputElement, getAcceptSelection(ext));
 			}else {
 				setAcceptSelection(inputElement, mime);
 			}
@@ -393,7 +412,7 @@ public class PlatformApplication {
 			decl.setProperty("top", "0px");
 			decl.setProperty("z-index", "-100");
 			if(mime == null) {
-				setAcceptSelection(inputElement, "." + ext);
+				setAcceptSelection(inputElement, getAcceptSelection(ext));
 			}else {
 				setAcceptSelection(inputElement, mime);
 			}
