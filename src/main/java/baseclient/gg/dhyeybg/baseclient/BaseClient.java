@@ -76,7 +76,6 @@ import baseclient.gg.dhyeybg.baseclient.module.utilities.ElytraFly;
 import baseclient.gg.dhyeybg.baseclient.module.utilities.ElytraBoost;
 import baseclient.gg.dhyeybg.baseclient.module.utilities.BoatFly;
 import baseclient.gg.dhyeybg.baseclient.module.utilities.Waypoints;
-import baseclient.gg.dhyeybg.baseclient.module.utilities.Zoom;
 import baseclient.gg.dhyeybg.baseclient.module.utilities.TimeChanger;
 import baseclient.gg.dhyeybg.baseclient.module.utilities.WeatherChanger;
 import baseclient.gg.dhyeybg.baseclient.settings.SettingsManager;
@@ -166,7 +165,6 @@ public class BaseClient {
 		((Timer) moduleManager.getModule("Timer")).registerSettings(settingsManager);
 		((XRay) moduleManager.getModule("XRay")).registerSettings(settingsManager);
 		((Freecam) moduleManager.getModule("Freecam")).registerSettings(settingsManager);
-		((Zoom) moduleManager.getModule("Zoom")).registerSettings(settingsManager);
 		((TimeChanger) moduleManager.getModule("Time Changer")).registerSettings(settingsManager);
 		((WeatherChanger) moduleManager.getModule("Weather Changer")).registerSettings(settingsManager);
 		((NoRender) moduleManager.getModule("NoRender")).registerSettings(settingsManager);
@@ -341,6 +339,10 @@ public class BaseClient {
 		if (moduleManager == null) return;
 		Minecraft minecraft = Minecraft.getMinecraft();
 		if (minecraft == null || minecraft.world == null || minecraft.player == null) return;
+		Module hudModule = moduleManager.getModule("HUD");
+		if (hudModule instanceof HUD) {
+			((HUD) hudModule).updateLayoutEditor();
+		}
 		for (Module m : moduleManager.getModuleList()) {
 			if (!m.isToggled()) continue;
 			if (!SingleplayerWorld.isModuleAllowed(m)) {
@@ -379,13 +381,6 @@ public class BaseClient {
 		if (moduleManager == null) return;
 		Minecraft mc = Minecraft.getMinecraft();
 		if (mc == null || mc.world == null || mc.player == null) return;
-
-		Module hudModule = moduleManager.getModule("HUD");
-		boolean hudEnabled = hudModule != null && hudModule.isToggled()
-				&& SingleplayerWorld.isModuleAllowed(hudModule);
-		if (hudEnabled && hudModule instanceof HUD && ((HUD) hudModule).shouldShowLabel()) {
-			mc.fontRendererObj.drawStringWithShadow(NAME + " " + VERSION, 2, 2, 0xFFBD62FF);
-		}
 
 		for (Module m : moduleManager.getModuleList()) {
 			if (m.isToggled()) {

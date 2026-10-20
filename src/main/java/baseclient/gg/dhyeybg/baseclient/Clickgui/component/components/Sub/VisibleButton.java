@@ -33,14 +33,14 @@ public class VisibleButton extends Component {
 		int left = parent.parent.getX();
 		int top = parent.parent.getY() + offset;
 		int right = left + parent.parent.getWidth();
-		Gui.drawRect(left + 2, top, right, top + 14, this.hovered ? 0xFF292331 : 0xFF15151C);
-		Gui.drawRect(left, top, left + 2, top + 14, 0xFF202027);
+		Gui.drawRect(left + 2, top, right, top + 14, this.hovered ? 0xFF202C39 : 0xFF131A23);
+		Gui.drawRect(left, top, left + 2, top + 14, 0xFF263241);
 		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow("Array List",
-				left + 7, top + 3, 0xFFBEBEC8);
+			left + 9, top + 3, 0xFFB8C4D0);
 		String value = mod.visible ? "ON" : "OFF";
 		int valueWidth = Minecraft.getMinecraft().fontRendererObj.getStringWidth(value);
 		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(value,
-				right - valueWidth - 5, top + 3, mod.visible ? 0xFFBD62FF : 0xFF888891);
+			right - valueWidth - 5, top + 3, mod.visible ? 0xFF5DC8E8 : 0xFF7F8B98);
 	}
 
 	@Override

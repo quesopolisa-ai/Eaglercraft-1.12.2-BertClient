@@ -33,15 +33,15 @@ public class Slider extends Component {
 		int left = parent.parent.getX();
 		int top = parent.parent.getY() + offset;
 		int width = parent.parent.getWidth();
-		Gui.drawRect(left + 2, top, left + width, top + 14, this.hovered ? 0xFF292331 : 0xFF15151C);
-		Gui.drawRect(left + 2, top + 11, left + width, top + 14, 0xFF34343D);
-		Gui.drawRect(left + 2, top + 11, left + (int) renderWidth, top + 14, 0xFFBD62FF);
-		Gui.drawRect(left, top, left + 2, top + 14, 0xFF202027);
+		Gui.drawRect(left + 2, top, left + width, top + 14, this.hovered ? 0xFF202C39 : 0xFF131A23);
+		Gui.drawRect(left + 2, top + 11, left + width, top + 14, 0xFF293541);
+		Gui.drawRect(left + 2, top + 11, left + (int) renderWidth, top + 14, 0xFF5DC8E8);
+		Gui.drawRect(left, top, left + 2, top + 14, 0xFF263241);
 		String value = formatValue();
 		GlStateManager.pushMatrix();
 		GlStateManager.scale(0.75F, 0.75F, 1.0F);
 		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(this.set.getName() + ": " + value,
-				(int) ((left + 6) / 0.75F), (int) ((top + 2) / 0.75F), 0xFFE2E2E8);
+				(int) ((left + 6) / 0.75F), (int) ((top + 2) / 0.75F), 0xFFE2EAF2);
 		GlStateManager.popMatrix();
 	}
 

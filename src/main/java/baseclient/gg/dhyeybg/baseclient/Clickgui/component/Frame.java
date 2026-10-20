@@ -12,8 +12,8 @@ import net.minecraft.client.gui.Gui;
 
 public class Frame {
 
-	private static final int WIDTH = 112;
-	private static final int HEADER_HEIGHT = 18;
+	private static final int WIDTH = 130;
+	private static final int HEADER_HEIGHT = 21;
 	private static final int ROW_HEIGHT = 14;
 	public ArrayList<Component> components;
 	public Category category;
@@ -70,19 +70,34 @@ public class Frame {
 	}
 
 	public void renderFrame(FontRenderer fontRenderer) {
+		Gui.drawRect(this.x - 2, this.y + 2, this.x + this.width + 2,
+				this.y + this.barHeight + 3, 0x57000000);
 		Gui.drawRect(this.x, this.y, this.x + this.width, this.y + this.barHeight, ClickGui.color);
-		Gui.drawRect(this.x, this.y + this.barHeight - 2, this.x + this.width,
-				this.y + this.barHeight, 0xFFBD62FF);
-		fontRenderer.drawStringWithShadow(this.category.name(), this.x + 7, this.y + 5, 0xFFFFFFFF);
+		Gui.drawRect(this.x, this.y, this.x + this.width, this.y + 1, 0xFF3B4A5A);
+		Gui.drawRect(this.x, this.y, this.x + 3, this.y + this.barHeight, 0xFF5DC8E8);
+		Gui.drawRect(this.x, this.y + this.barHeight - 1, this.x + this.width,
+				this.y + this.barHeight, 0xFF5DC8E8);
+		fontRenderer.drawStringWithShadow(displayCategory(), this.x + 9, this.y + 7, 0xFFF0F4FA);
+		String count = Integer.toString(this.components.size());
+		int countWidth = fontRenderer.getStringWidth(count);
+		fontRenderer.drawStringWithShadow(count, this.x + this.width - countWidth - 22,
+				this.y + 7, 0xFF8797A8);
 		fontRenderer.drawStringWithShadow(this.open ? "-" : "+",
-				this.x + this.width - 11, this.y + 5, 0xFFE8BAFF);
+				this.x + this.width - 12, this.y + 7, 0xFF73D3E6);
 		if (this.open) {
 			Gui.drawRect(this.x, this.y + this.barHeight, this.x + this.width,
-					this.y + getExpandedHeight(), 0xE6101018);
+					this.y + getExpandedHeight(), 0xEF101720);
+			Gui.drawRect(this.x + this.width - 1, this.y + this.barHeight,
+					this.x + this.width, this.y + getExpandedHeight(), 0xFF2B3948);
 			for (Component component : components) {
 				component.renderComponent();
 			}
 		}
+	}
+
+	private String displayCategory() {
+		String name = this.category.name().toLowerCase();
+		return Character.toUpperCase(name.charAt(0)) + name.substring(1);
 	}
 
 	public void refresh() {

@@ -36,7 +36,7 @@ public class ChestLooter extends Module {
 	}
 
 	public void registerSettings(SettingsManager manager) {
-		clickDelay = new Setting("Click Delay", this, 2.0D, 0.0D, 10.0D, true);
+		clickDelay = new Setting("Click Delay", this, 0.0D, 0.0D, 10.0D, true);
 		manager.rSetting(clickDelay);
 	}
 

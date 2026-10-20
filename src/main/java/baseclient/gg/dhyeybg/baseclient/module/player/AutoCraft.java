@@ -22,7 +22,6 @@ import net.minecraft.item.crafting.Ingredient;
 
 public class AutoCraft extends Module {
     private Setting recipe;
-    private long nextCraftTime;
 
     private static final Ingredient PLANK = Ingredient.func_193367_a(Item.getItemFromBlock(Blocks.PLANKS));
     private static final Ingredient STICK = Ingredient.func_193367_a(Items.STICK);
@@ -94,14 +93,9 @@ public class AutoCraft extends Module {
     }
 
     @Override
-    public void onEnable() {
-        nextCraftTime = 0L;
-    }
-
-    @Override
     public void onUpdate() {
         if (mc == null || mc.player == null || mc.world == null || mc.playerController == null
-                || !SingleplayerWorld.isSingleplayer() || System.currentTimeMillis() < nextCraftTime) {
+                || !SingleplayerWorld.isSingleplayer()) {
             return;
         }
 
@@ -127,7 +121,6 @@ public class AutoCraft extends Module {
         ItemStack result = container.getSlot(0).getStack();
         if (matchesOutput(result, plan.output)) {
             mc.playerController.windowClick(container.windowId, 0, 0, ClickType.QUICK_MOVE, mc.player);
-            nextCraftTime = System.currentTimeMillis() + 250L;
             return;
         }
 
@@ -141,7 +134,6 @@ public class AutoCraft extends Module {
             if (!inputStack.func_190926_b()
                     && (expected == null || !expected.apply(inputStack))) {
                 mc.playerController.windowClick(container.windowId, slot, 0, ClickType.QUICK_MOVE, mc.player);
-                nextCraftTime = System.currentTimeMillis() + 150L;
                 return;
             }
             if (firstInputSlot < 0 && insidePlan && expected != null && inputStack.func_190926_b()) {
@@ -158,8 +150,7 @@ public class AutoCraft extends Module {
         }
         int sourceSlot = findIngredientSlot(container, ingredient);
         if (sourceSlot >= 0) {
-            placeOne(container, sourceSlot, firstInputSlot);
-            nextCraftTime = System.currentTimeMillis() + 100L;
+            placeStack(container, plan, gridSize, sourceSlot, ingredient);
         }
     }
 
@@ -214,9 +205,22 @@ public class AutoCraft extends Module {
         return -1;
     }
 
-    private void placeOne(Container container, int sourceSlot, int gridSlot) {
-        mc.playerController.windowClick(container.windowId, sourceSlot, 1, ClickType.PICKUP, mc.player);
-        mc.playerController.windowClick(container.windowId, gridSlot, 1, ClickType.PICKUP, mc.player);
+    private void placeStack(Container container, Plan plan, int gridSize, int sourceSlot, Ingredient ingredient) {
+        mc.playerController.windowClick(container.windowId, sourceSlot, 0, ClickType.PICKUP, mc.player);
+        if (!mc.player.inventory.getItemStack().func_190926_b()) {
+            mc.playerController.windowClick(container.windowId, -999,
+                    Container.getQuickcraftMask(0, 0), ClickType.QUICK_CRAFT, mc.player);
+            for (int ingredientIndex = 0; ingredientIndex < plan.width * plan.height; ingredientIndex++) {
+                if (plan.ingredients[ingredientIndex] != ingredient) {
+                    continue;
+                }
+                int gridSlot = 1 + (ingredientIndex / plan.width) * gridSize + ingredientIndex % plan.width;
+                mc.playerController.windowClick(container.windowId, gridSlot,
+                        Container.getQuickcraftMask(1, 0), ClickType.QUICK_CRAFT, mc.player);
+            }
+            mc.playerController.windowClick(container.windowId, -999,
+                    Container.getQuickcraftMask(2, 0), ClickType.QUICK_CRAFT, mc.player);
+        }
         if (!mc.player.inventory.getItemStack().func_190926_b()) {
             mc.playerController.windowClick(container.windowId, sourceSlot, 0, ClickType.PICKUP, mc.player);
         }

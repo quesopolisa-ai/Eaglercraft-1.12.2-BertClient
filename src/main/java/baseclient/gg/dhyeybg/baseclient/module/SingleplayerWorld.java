@@ -86,7 +86,6 @@ public final class SingleplayerWorld {
         MULTIPLAYER_ALLOWED.put("xray", false);
         MULTIPLAYER_ALLOWED.put("freecam", true);
         MULTIPLAYER_ALLOWED.put("waypoints", true);
-        MULTIPLAYER_ALLOWED.put("zoom", true);
         MULTIPLAYER_ALLOWED.put("time changer", true);
         MULTIPLAYER_ALLOWED.put("weather changer", true);
         MULTIPLAYER_ALLOWED.put("chat timestamps", true);

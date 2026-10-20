@@ -18,10 +18,10 @@ import net.minecraft.client.gui.Gui;
 public class Button extends Component {
 
 	private static final int ROW_HEIGHT = 14;
-	private static final int ACCENT = 0xFFBD62FF;
-	private static final int HOVER_BG = 0xFF292331;
-	private static final int TOGGLED_BG = 0xFF21182B;
-	private static final int IDLE_BG = 0xFF15151C;
+	private static final int ACCENT = 0xFF5DC8E8;
+	private static final int HOVER_BG = 0xFF202C39;
+	private static final int TOGGLED_BG = 0xFF18303A;
+	private static final int IDLE_BG = 0xFF131A23;
 
 	public Module mod;
 	public Frame parent;
@@ -40,6 +40,7 @@ public class Button extends Component {
 		ArrayList<Setting> settings = BaseClient.instance.settingsManager.getSettingsByMod(mod);
 		if (settings != null) {
 			for (Setting s : settings) {
+				if (s.isHidden()) continue;
 				if (s.isCombo()) {
 					this.subcomponents.add(new ModuleButton(s, this, mod, opY));
 					opY += ROW_HEIGHT;
@@ -81,12 +82,12 @@ public class Button extends Component {
 				parent.getX() + parent.getWidth(), this.parent.getY() + ROW_HEIGHT + this.offset, bg);
 		Gui.drawRect(parent.getX(), this.parent.getY() + this.offset,
 				parent.getX() + 2, this.parent.getY() + ROW_HEIGHT + this.offset,
-				this.mod.isToggled() ? ACCENT : 0xFF373741);
+				this.mod.isToggled() ? ACCENT : 0xFF263241);
 		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(this.mod.getName(),
-				parent.getX() + 7, parent.getY() + offset + 3, this.mod.isToggled() ? ACCENT : 0xFFE2E2E8);
+				parent.getX() + 9, parent.getY() + offset + 3, this.mod.isToggled() ? ACCENT : 0xFFE2EAF2);
 		if (this.subcomponents.size() > 2) {
-			Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(this.open ? "-" : "+",
-					parent.getX() + parent.getWidth() - 11, parent.getY() + offset + 3, 0xFFAAAAAF);
+			Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(this.open ? "v" : ">",
+					parent.getX() + parent.getWidth() - 11, parent.getY() + offset + 3, 0xFF91A5B7);
 		}
 		if (this.open && !this.subcomponents.isEmpty()) {
 			for (Component comp : this.subcomponents) {

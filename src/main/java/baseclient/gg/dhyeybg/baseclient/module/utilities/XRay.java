@@ -2,6 +2,7 @@ package baseclient.gg.dhyeybg.baseclient.module.utilities;
 
 import baseclient.gg.dhyeybg.baseclient.module.Category;
 import baseclient.gg.dhyeybg.baseclient.module.Module;
+import baseclient.gg.dhyeybg.baseclient.module.SingleplayerWorld;
 import baseclient.gg.dhyeybg.baseclient.settings.Setting;
 import baseclient.gg.dhyeybg.baseclient.settings.SettingsManager;
 import net.minecraft.block.Block;
@@ -21,11 +22,16 @@ public class XRay extends Module {
 	}
 
 	public boolean shouldRender(IBlockState state) {
+		if (!isToggled() || !SingleplayerWorld.isModuleAllowed(this)) return true;
+		return shouldRenderBlock(state);
+	}
+
+	public boolean shouldRenderBlock(IBlockState state) {
+		if (!isToggled()) return true;
 		Block block = state.getBlock();
-		if (!isToggled() || !baseclient.gg.dhyeybg.baseclient.module.SingleplayerWorld.isModuleAllowed(this)) return true;
 		boolean ore = block == Blocks.COAL_ORE || block == Blocks.IRON_ORE || block == Blocks.GOLD_ORE
 				|| block == Blocks.REDSTONE_ORE || block == Blocks.LAPIS_ORE || block == Blocks.DIAMOND_ORE
-				|| block == Blocks.EMERALD_ORE || block == Blocks.QUARTZ_ORE;
+				|| block == Blocks.LIT_REDSTONE_ORE || block == Blocks.EMERALD_ORE || block == Blocks.QUARTZ_ORE;
 		if (ore) return true;
 		return showValuables != null && showValuables.getValBoolean()
 				&& (block == Blocks.DIAMOND_BLOCK || block == Blocks.EMERALD_BLOCK

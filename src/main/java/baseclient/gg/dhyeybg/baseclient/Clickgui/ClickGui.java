@@ -14,7 +14,7 @@ import net.minecraft.client.gui.Gui;
 public class ClickGui extends GuiScreen {
 
 	public static ArrayList<Frame> frames;
-	public static int color = 0xFF24202D;
+	public static int color = 0xFF17212D;
 
 	public ClickGui() {
 		if (frames == null) {
@@ -42,6 +42,7 @@ public class ClickGui extends GuiScreen {
 	@Override
 	public void drawScreen(int mouseX, int mouseY, float partialTicks) {
 		this.drawDefaultBackground();
+		Gui.drawRect(0, 0, this.width, this.height, 0x33040A12);
 		float size = getSize();
 		int logicalWidth = (int) (this.width / size);
 		int logicalHeight = (int) (this.height / size);
@@ -56,11 +57,12 @@ public class ClickGui extends GuiScreen {
 			}
 		}
 		GlStateManager.popMatrix();
-		String help = "LMB: toggle   RMB: settings   Drag: move   ESC: close";
+		Gui.drawRect(0, this.height - 20, this.width, this.height, 0xE80D131B);
+		Gui.drawRect(0, this.height - 20, this.width, this.height - 19, 0xFF5DC8E8);
+		String help = "LEFT CLICK  Toggle     RIGHT CLICK  Settings     DRAG  Panels     ESC  Close";
 		int helpWidth = this.fontRendererObj.getStringWidth(help);
-		Gui.drawRect(0, this.height - 17, this.width, this.height, 0xA0101018);
 		this.fontRendererObj.drawStringWithShadow(help, (this.width - helpWidth) / 2,
-				this.height - 12, 0xFFD5D5DE);
+				this.height - 13, 0xFFD5E0EA);
 	}
 
 	@Override

@@ -12,6 +12,10 @@ import net.minecraft.util.math.MathHelper;
 public class Freecam extends Module {
 	private Setting speed;
 	private EntityOtherPlayerMP camera;
+	private net.minecraft.world.World cameraWorld;
+	private double playerAnchorX;
+	private double playerAnchorY;
+	private double playerAnchorZ;
 
 	public Freecam() {
 		super("Freecam", "Moves the camera independently from the player", Category.UTILITIES);
@@ -28,6 +32,10 @@ public class Freecam extends Module {
 			setToggled(false);
 			return;
 		}
+		cameraWorld = mc.world;
+		playerAnchorX = mc.player.posX;
+		playerAnchorY = mc.player.posY;
+		playerAnchorZ = mc.player.posZ;
 		camera = new EntityOtherPlayerMP(mc.world, new GameProfile(mc.player.getUniqueID(), mc.player.getName()));
 		camera.copyLocationAndAnglesFrom(mc.player);
 		camera.prevRotationYaw = camera.rotationYaw;
@@ -46,12 +54,19 @@ public class Freecam extends Module {
 			setToggled(false);
 			return;
 		}
+		if (mc.getRenderViewEntity() != camera) {
+			mc.setRenderViewEntity(camera);
+		}
 		camera.prevPosX = camera.posX;
 		camera.prevPosY = camera.posY;
 		camera.prevPosZ = camera.posZ;
-		camera.prevRotationYaw = camera.rotationYaw;
-		camera.prevRotationPitch = camera.rotationPitch;
-		camera.prevRotationYawHead = camera.rotationYawHead;
+		camera.prevRotationYaw = mc.player.prevRotationYaw;
+		camera.prevRotationPitch = mc.player.prevRotationPitch;
+		camera.prevRotationYawHead = mc.player.prevRotationYawHead;
+		camera.rotationYaw = mc.player.rotationYaw;
+		camera.rotationPitch = mc.player.rotationPitch;
+		camera.rotationYawHead = camera.rotationYaw;
+		camera.renderYawOffset = camera.rotationYaw;
 		double forward = (mc.gameSettings.keyBindForward.isKeyDown() ? 1.0D : 0.0D)
 				- (mc.gameSettings.keyBindBack.isKeyDown() ? 1.0D : 0.0D);
 		double strafe = (mc.gameSettings.keyBindLeft.isKeyDown() ? 1.0D : 0.0D)
@@ -74,13 +89,25 @@ public class Freecam extends Module {
 		camera.rotationPitch = MathHelper.clamp(camera.rotationPitch, -90.0F, 90.0F);
 		camera.rotationYawHead = camera.rotationYaw;
 		camera.renderYawOffset = camera.rotationYaw;
+
+		mc.player.setPosition(playerAnchorX, playerAnchorY, playerAnchorZ);
+		mc.player.motionX = 0.0D;
+		mc.player.motionY = 0.0D;
+		mc.player.motionZ = 0.0D;
 	}
 
 	@Override
 	public void onDisable() {
-		if (mc != null && mc.getRenderViewEntity() == camera) {
+		if (mc != null && mc.player != null && camera != null && mc.getRenderViewEntity() == camera) {
 			mc.setRenderViewEntity(mc.player);
 		}
+		if (mc != null && mc.player != null && mc.world == cameraWorld) {
+			mc.player.setPosition(playerAnchorX, playerAnchorY, playerAnchorZ);
+			mc.player.motionX = 0.0D;
+			mc.player.motionY = 0.0D;
+			mc.player.motionZ = 0.0D;
+		}
 		camera = null;
+		cameraWorld = null;
 	}
 }

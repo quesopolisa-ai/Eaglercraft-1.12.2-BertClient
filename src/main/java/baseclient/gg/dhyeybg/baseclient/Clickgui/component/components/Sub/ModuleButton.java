@@ -40,17 +40,17 @@ public class ModuleButton extends Component {
 		int left = parent.parent.getX();
 		int top = parent.parent.getY() + offset;
 		int right = left + parent.parent.getWidth();
-		Gui.drawRect(left + 2, top, right, top + 14, this.hovered ? 0xFF292331 : 0xFF15151C);
-		Gui.drawRect(left, top, left + 2, top + 14, 0xFF202027);
+		Gui.drawRect(left + 2, top, right, top + 14, this.hovered ? 0xFF202C39 : 0xFF131A23);
+		Gui.drawRect(left, top, left + 2, top + 14, 0xFF263241);
 		String value = "< " + set.getValString() + " >";
 		int valueWidth = Minecraft.getMinecraft().fontRendererObj.getStringWidth(value);
 		GlStateManager.pushMatrix();
 		GlStateManager.scale(0.75F, 0.75F, 1.0F);
 		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(set.getName(),
-				(int) ((left + 7) / 0.75F), (int) ((top + 3) / 0.75F), 0xFFBEBEC8);
+				(int) ((left + 7) / 0.75F), (int) ((top + 3) / 0.75F), 0xFFB8C4D0);
 		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(value,
 				(int) ((right - valueWidth * 0.75F - 5) / 0.75F),
-				(int) ((top + 3) / 0.75F), 0xFFE8BAFF);
+				(int) ((top + 3) / 0.75F), 0xFF80D8E8);
 		GlStateManager.popMatrix();
 	}
 

@@ -33,10 +33,10 @@ public class Keybind extends Component {
 		int top = parent.parent.getY() + offset;
 		int right = left + parent.parent.getWidth();
 		Gui.drawRect(left + 2, top, right, top + 14,
-				binding ? 0xFF34223F : (this.hovered ? 0xFF292331 : 0xFF15151C));
-		Gui.drawRect(left, top, left + 2, top + 14, 0xFF202027);
+				binding ? 0xFF173C4A : (this.hovered ? 0xFF202C39 : 0xFF131A23));
+		Gui.drawRect(left, top, left + 2, top + 14, 0xFF263241);
 		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(binding ? "Press a key..." : "Keybind",
-				left + 7, top + 3, binding ? 0xFFE8BAFF : 0xFFBEBEC8);
+				left + 9, top + 3, binding ? 0xFF80D8E8 : 0xFFB8C4D0);
 		String keyName = Keyboard.getKeyName(this.parent.mod.getKey());
 		int keyWidth = Minecraft.getMinecraft().fontRendererObj.getStringWidth(keyName);
 		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(keyName,

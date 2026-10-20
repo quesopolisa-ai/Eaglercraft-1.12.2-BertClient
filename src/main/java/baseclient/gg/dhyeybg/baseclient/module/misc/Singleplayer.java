@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -21,12 +22,20 @@ import baseclient.gg.dhyeybg.baseclient.settings.SettingsManager;
 import net.lax1dude.eaglercraft.EagRuntime;
 import net.lax1dude.eaglercraft.EaglerZLIB;
 import net.lax1dude.eaglercraft.KeyboardConstants;
+import net.lax1dude.eaglercraft.opengl.GlStateManager;
+import net.lax1dude.eaglercraft.opengl.WorldRenderer;
 import net.lax1dude.eaglercraft.internal.FileChooserResult;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockStairs;
+import net.minecraft.block.material.MapColor;
+import net.minecraft.block.properties.IProperty;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.gui.GuiAutoBuilder;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.init.Blocks;
 import net.minecraft.item.ItemBlock;
+import net.minecraft.item.ItemBlockSpecial;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraft.nbt.NBTSizeTracker;
@@ -38,7 +47,9 @@ import net.minecraft.util.EnumActionResult;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.Rotation;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.text.TextComponentString;
@@ -55,10 +66,16 @@ public final class Singleplayer {
 		private static final int MAX_NBT_BYTES = 16 * 1024 * 1024;
 		private static final int MAX_BLOCKS = 65536;
 		private static final int MAX_SCHEMATIC_BLOCKS = 65536;
+		private static final int MAX_PREVIEW_BLOCKS = 8192;
+		private static final int MAX_PREVIEW_OUTLINES = 2048;
 		private static final double PLACE_REACH_SQUARED = 20.25D;
 
-		private Setting buildDelay;
+		private Setting placeSpeed;
+		private Setting showPreview;
+		private Setting previewRange;
 		private final List<PlannedBlock> blocks = new ArrayList<PlannedBlock>();
+		private final Map<Long, Integer> plannedBlockIndex = new HashMap<Long, Integer>();
+		private final List<Integer> nearbyBlockIndices = new ArrayList<Integer>();
 		private final Map<String, Integer> materials = new TreeMap<String, Integer>();
 		private BlockPos anchor;
 		private BlockPos schematicCornerOne;
@@ -67,10 +84,12 @@ public final class Singleplayer {
 		private int sizeY;
 		private int sizeZ;
 		private String blueprintName = "";
-		private String status = "Aim at a block and press B to set the build anchor.";
+		private String status = "Set build coordinates, import a blueprint, then preview and build.";
 		private boolean building;
-		private int nextBlock;
-		private int ticksUntilNextBlock;
+		private boolean[] completedBlocks;
+		private int completedBlockCount;
+		private double placementBudget;
+		private int rotationDegrees;
 		private int currentLayer;
 		private int pendingSchematicCorner;
 		private int originalHotbarSlot = -1;
@@ -81,8 +100,12 @@ public final class Singleplayer {
 		}
 
 		public void registerSettings(SettingsManager manager) {
-			buildDelay = new Setting("Block Delay", this, 4.0D, 1.0D, 20.0D, true);
-			manager.rSetting(buildDelay);
+			placeSpeed = new Setting("Place Speed", this, 6.0D, 1.0D, 30.0D, true);
+			showPreview = new Setting("World Preview", this, true);
+			previewRange = Setting.textBox("Preview Range", this, 64.0D, 8.0D, 128.0D);
+			manager.rSetting(placeSpeed);
+			manager.rSetting(showPreview);
+			manager.rSetting(previewRange);
 		}
 
 		@Override
@@ -95,23 +118,20 @@ public final class Singleplayer {
 				return;
 			}
 
-			RayTraceResult hit = mc.objectMouseOver;
-			if (hit == null || hit.typeOfHit != RayTraceResult.Type.BLOCK || hit.sideHit == null) {
-				notifyPlayer("Aim at a block face before opening Auto Builder.");
-				setToggled(false);
-				return;
+			if (anchor == null) {
+				anchor = new BlockPos(MathHelper.floor(mc.player.posX), MathHelper.floor(mc.player.posY),
+						MathHelper.floor(mc.player.posZ));
 			}
-			anchor = hit.getBlockPos().offset(hit.sideHit);
 			building = false;
 			currentLayer = 0;
-			status = "Anchor: " + anchor.getX() + ", " + anchor.getY() + ", " + anchor.getZ()
-					+ " - import a .nbt or classic .schematic blueprint.";
+			status = "Anchor kept at " + formatPosition(anchor) + ". Set coordinates below to move it.";
 			mc.displayGuiScreen(new GuiAutoBuilder(this));
 		}
 
 		@Override
 		public void onDisable() {
 			building = false;
+			placementBudget = 0.0D;
 			restoreHotbarSlot();
 			if (mc != null && mc.currentScreen instanceof GuiAutoBuilder) {
 				mc.displayGuiScreen(null);
@@ -154,12 +174,233 @@ public final class Singleplayer {
 			if (!building) {
 				return;
 			}
-			if (ticksUntilNextBlock > 0) {
-				--ticksUntilNextBlock;
+			placeNextBlock();
+		}
+
+		@Override
+		public void onRender3D(float partialTicks) {
+			if (mc == null || mc.world == null) {
+				return;
+			}
+			Entity view = mc.getRenderViewEntity();
+			if (view == null) {
+				return;
+			}
+			double viewerX = view.lastTickPosX + (view.posX - view.lastTickPosX) * partialTicks;
+			double viewerY = view.lastTickPosY + (view.posY - view.lastTickPosY) * partialTicks;
+			double viewerZ = view.lastTickPosZ + (view.posZ - view.lastTickPosZ) * partialTicks;
+			boolean drawPreview = (showPreview == null || showPreview.getValBoolean())
+					&& anchor != null && !blocks.isEmpty();
+			boolean drawMarkers = anchor != null || schematicCornerOne != null || schematicCornerTwo != null;
+			if (!drawPreview && !drawMarkers) {
 				return;
 			}
 
-			placeNextBlock();
+			Tessellator tessellator = Tessellator.getInstance();
+			WorldRenderer buffer = tessellator.getBuffer();
+			GlStateManager.disableTexture2D();
+			GlStateManager.disableLighting();
+			GlStateManager.disableDepth();
+			GlStateManager.depthMask(false);
+			GlStateManager.enableBlend();
+			GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+			GlStateManager.disableCull();
+			buffer.begin(7, DefaultVertexFormats.POSITION_COLOR);
+
+			if (drawPreview) {
+				double range = previewRange == null ? 64.0D : previewRange.getValDouble();
+				double rangeSq = range * range;
+				int rendered = 0;
+				for (PlannedBlock planned : blocks) {
+					if (rendered >= MAX_PREVIEW_BLOCKS) {
+						break;
+					}
+					int worldX = anchor.getX() + planned.pos.getX();
+					int worldY = anchor.getY() + planned.pos.getY();
+					int worldZ = anchor.getZ() + planned.pos.getZ();
+					double dx = worldX + 0.5D - viewerX;
+					double dy = worldY + 0.5D - viewerY;
+					double dz = worldZ + 0.5D - viewerZ;
+					if (dx * dx + dy * dy + dz * dz > rangeSq) {
+						continue;
+					}
+					BlockPos pos = new BlockPos(worldX, worldY, worldZ);
+					int color = getPreviewColor(planned.state, pos);
+					float alpha = 0.19F;
+					if (mc.world.isBlockLoaded(pos)) {
+						IBlockState existing = mc.world.getBlockState(pos);
+						if (matchesPlannedState(existing, planned.state)) {
+							color = 0xFF56D6A5;
+							alpha = 0.12F;
+						} else if (!existing.getMaterial().isReplaceable()) {
+							color = 0xFFFF626E;
+							alpha = 0.28F;
+						}
+					}
+					addGhostCube(buffer, pos.getX() - viewerX, pos.getY() - viewerY, pos.getZ() - viewerZ,
+							color, alpha);
+					rendered++;
+				}
+			}
+
+			if (anchor != null) {
+				addGhostCube(buffer, anchor.getX() - viewerX, anchor.getY() - viewerY, anchor.getZ() - viewerZ,
+						0xFF5DC8E8, 0.40F);
+			}
+			if (schematicCornerOne != null) {
+				addGhostCube(buffer, schematicCornerOne.getX() - viewerX, schematicCornerOne.getY() - viewerY,
+						schematicCornerOne.getZ() - viewerZ, 0xFF64D6A6, 0.44F);
+			}
+			if (schematicCornerTwo != null) {
+				addGhostCube(buffer, schematicCornerTwo.getX() - viewerX, schematicCornerTwo.getY() - viewerY,
+						schematicCornerTwo.getZ() - viewerZ, 0xFFFF9B62, 0.44F);
+			}
+
+			tessellator.draw();
+			buffer.begin(1, DefaultVertexFormats.POSITION_COLOR);
+			if (drawPreview) {
+				double range = previewRange == null ? 64.0D : previewRange.getValDouble();
+				double rangeSq = range * range;
+				int outlined = 0;
+				for (PlannedBlock planned : blocks) {
+					if (outlined >= MAX_PREVIEW_OUTLINES) {
+						break;
+					}
+					int worldX = anchor.getX() + planned.pos.getX();
+					int worldY = anchor.getY() + planned.pos.getY();
+					int worldZ = anchor.getZ() + planned.pos.getZ();
+					double dx = worldX + 0.5D - viewerX;
+					double dy = worldY + 0.5D - viewerY;
+					double dz = worldZ + 0.5D - viewerZ;
+					if (dx * dx + dy * dy + dz * dz > rangeSq) {
+						continue;
+					}
+					BlockPos pos = new BlockPos(worldX, worldY, worldZ);
+					int edgeColor = 0xFFBCE8F5;
+					float edgeAlpha = 0.72F;
+					if (mc.world.isBlockLoaded(pos)) {
+						IBlockState existing = mc.world.getBlockState(pos);
+						if (matchesPlannedState(existing, planned.state)) {
+							edgeColor = 0xFF56D6A5;
+							edgeAlpha = 0.78F;
+						} else if (!existing.getMaterial().isReplaceable()) {
+							edgeColor = 0xFFFF626E;
+							edgeAlpha = 0.84F;
+						}
+					}
+					addCubeOutline(buffer, pos.getX() - viewerX, pos.getY() - viewerY, pos.getZ() - viewerZ,
+							edgeColor, edgeAlpha);
+					outlined++;
+				}
+			}
+			if (anchor != null) {
+				addCubeOutline(buffer, anchor.getX() - viewerX, anchor.getY() - viewerY, anchor.getZ() - viewerZ,
+						0xFF5DC8E8, 0.95F);
+			}
+			if (schematicCornerOne != null) {
+				addCubeOutline(buffer, schematicCornerOne.getX() - viewerX, schematicCornerOne.getY() - viewerY,
+						schematicCornerOne.getZ() - viewerZ, 0xFF64D6A6, 0.95F);
+			}
+			if (schematicCornerTwo != null) {
+				addCubeOutline(buffer, schematicCornerTwo.getX() - viewerX, schematicCornerTwo.getY() - viewerY,
+						schematicCornerTwo.getZ() - viewerZ, 0xFFFF9B62, 0.95F);
+			}
+			tessellator.draw();
+			GlStateManager.depthMask(true);
+			GlStateManager.enableDepth();
+			GlStateManager.enableTexture2D();
+			GlStateManager.enableCull();
+			GlStateManager.disableBlend();
+		}
+
+		private int getPreviewColor(IBlockState state, BlockPos pos) {
+			MapColor mapColor = mc.world.isBlockLoaded(pos) ? state.getMapColor(mc.world, pos) : null;
+			if (mapColor != null && mapColor.colorValue != 0) {
+				return mapColor.colorValue;
+			}
+			ResourceLocation name = Block.REGISTRY.getNameForObject(state.getBlock());
+			int hash = name == null ? state.getBlock().hashCode() : name.toString().hashCode();
+			int red = 80 + (hash & 0x7F);
+			int green = 80 + ((hash >>> 8) & 0x7F);
+			int blue = 80 + ((hash >>> 16) & 0x7F);
+			return red << 16 | green << 8 | blue;
+		}
+
+		private boolean matchesPlannedState(IBlockState existing, IBlockState planned) {
+			if (existing.getBlock() != planned.getBlock()) {
+				return false;
+			}
+			for (Map.Entry<IProperty<?>, Comparable<?>> property : planned.getProperties().entrySet()) {
+				if (isDynamicPreviewProperty(property.getKey().getName())) {
+					continue;
+				}
+				Comparable<?> existingValue = existing.getProperties().get(property.getKey());
+				if (!property.getValue().equals(existingValue)) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		private boolean isDynamicPreviewProperty(String name) {
+			return "age".equals(name) || "shape".equals(name) || "power".equals(name)
+					|| "powered".equals(name) || "attached".equals(name) || "disarmed".equals(name)
+					|| "north".equals(name) || "east".equals(name) || "south".equals(name)
+					|| "west".equals(name) || "up".equals(name) || "down".equals(name)
+					|| "decayable".equals(name) || "check_decay".equals(name) || "open".equals(name)
+					|| "lit".equals(name) || "triggered".equals(name) || "extended".equals(name);
+		}
+
+		private static void addGhostCube(WorldRenderer buffer, double x, double y, double z, int color, float alpha) {
+			float red = (color >> 16 & 255) / 255.0F;
+			float green = (color >> 8 & 255) / 255.0F;
+			float blue = (color & 255) / 255.0F;
+			double x2 = x + 1.0D;
+			double y2 = y + 1.0D;
+			double z2 = z + 1.0D;
+			ghostQuad(buffer, x, y2, z, x2, y2, z, x2, y2, z2, x, y2, z2, red, green, blue, alpha);
+			ghostQuad(buffer, x, y, z2, x2, y, z2, x2, y, z, x, y, z, red, green, blue, alpha);
+			ghostQuad(buffer, x, y, z, x, y2, z, x2, y2, z, x2, y, z, red, green, blue, alpha);
+			ghostQuad(buffer, x2, y, z2, x2, y2, z2, x, y2, z2, x, y, z2, red, green, blue, alpha);
+			ghostQuad(buffer, x, y, z2, x, y2, z2, x, y2, z, x, y, z, red, green, blue, alpha);
+			ghostQuad(buffer, x2, y, z, x2, y2, z, x2, y2, z2, x2, y, z2, red, green, blue, alpha);
+		}
+
+		private static void ghostQuad(WorldRenderer buffer, double x1, double y1, double z1,
+				double x2, double y2, double z2, double x3, double y3, double z3,
+				double x4, double y4, double z4, float red, float green, float blue, float alpha) {
+			buffer.pos(x1, y1, z1).color(red, green, blue, alpha).endVertex();
+			buffer.pos(x2, y2, z2).color(red, green, blue, alpha).endVertex();
+			buffer.pos(x3, y3, z3).color(red, green, blue, alpha).endVertex();
+			buffer.pos(x4, y4, z4).color(red, green, blue, alpha).endVertex();
+		}
+
+		private static void addCubeOutline(WorldRenderer buffer, double x, double y, double z, int color,
+				float alpha) {
+			double x2 = x + 1.0D;
+			double y2 = y + 1.0D;
+			double z2 = z + 1.0D;
+			float red = (color >> 16 & 255) / 255.0F;
+			float green = (color >> 8 & 255) / 255.0F;
+			float blue = (color & 255) / 255.0F;
+			outlineEdge(buffer, x, y, z, x2, y, z, red, green, blue, alpha);
+			outlineEdge(buffer, x2, y, z, x2, y, z2, red, green, blue, alpha);
+			outlineEdge(buffer, x2, y, z2, x, y, z2, red, green, blue, alpha);
+			outlineEdge(buffer, x, y, z2, x, y, z, red, green, blue, alpha);
+			outlineEdge(buffer, x, y2, z, x2, y2, z, red, green, blue, alpha);
+			outlineEdge(buffer, x2, y2, z, x2, y2, z2, red, green, blue, alpha);
+			outlineEdge(buffer, x2, y2, z2, x, y2, z2, red, green, blue, alpha);
+			outlineEdge(buffer, x, y2, z2, x, y2, z, red, green, blue, alpha);
+			outlineEdge(buffer, x, y, z, x, y2, z, red, green, blue, alpha);
+			outlineEdge(buffer, x2, y, z, x2, y2, z, red, green, blue, alpha);
+			outlineEdge(buffer, x2, y, z2, x2, y2, z2, red, green, blue, alpha);
+			outlineEdge(buffer, x, y, z2, x, y2, z2, red, green, blue, alpha);
+		}
+
+		private static void outlineEdge(WorldRenderer buffer, double x1, double y1, double z1, double x2, double y2,
+				double z2, float red, float green, float blue, float alpha) {
+			buffer.pos(x1, y1, z1).color(red, green, blue, alpha).endVertex();
+			buffer.pos(x2, y2, z2).color(red, green, blue, alpha).endVertex();
 		}
 
 		public void importStructure() {
@@ -186,16 +427,22 @@ public final class Singleplayer {
 			}
 			for (PlannedBlock block : blocks) {
 				BlockPos target = anchor.add(block.pos);
-				if (!mc.world.isBlockLoaded(target) || !mc.world.getWorldBorder().contains(target)) {
-					status = "Build stopped: load the destination chunks and keep the structure inside the world border.";
+				if (!mc.world.getWorldBorder().contains(target)) {
+					status = "Build stopped: the structure extends outside the world border.";
 					return;
 				}
 			}
-			nextBlock = 0;
-			ticksUntilNextBlock = 0;
+			completedBlocks = new boolean[blocks.size()];
+			completedBlockCount = 0;
+			plannedBlockIndex.clear();
+			for (int i = 0; i < blocks.size(); i++) {
+				BlockPos local = blocks.get(i).pos;
+				plannedBlockIndex.put(packPosition(local.getX(), local.getY(), local.getZ()), i);
+			}
 			originalHotbarSlot = mc.player.inventory.currentItem;
+			placementBudget = 0.0D;
 			building = true;
-			status = "Building from hotbar blocks. Keep the next block within reach.";
+			status = "Building at " + getPlaceSpeed() + " blocks/sec; move near the preview to continue.";
 		}
 
 		public void stopBuild() {
@@ -227,6 +474,82 @@ public final class Singleplayer {
 				schematicCornerTwo = hit.getBlockPos();
 				status = "Schematic corner 2: " + formatPosition(schematicCornerTwo);
 			}
+		}
+
+		public void setAnchorFromText(String xText, String yText, String zText) {
+			try {
+				setAnchor(Integer.parseInt(xText.trim()), Integer.parseInt(yText.trim()),
+						Integer.parseInt(zText.trim()));
+			} catch (NumberFormatException e) {
+				status = "Anchor coordinates must be whole numbers.";
+			}
+		}
+
+		public void usePlayerPositionAsAnchor() {
+			if (!isWorldAllowed()) {
+				status = "Cannot set the anchor without an active world.";
+				return;
+			}
+			setAnchor(MathHelper.floor(mc.player.posX), MathHelper.floor(mc.player.posY),
+					MathHelper.floor(mc.player.posZ));
+		}
+
+		private void setAnchor(int x, int y, int z) {
+			if (building) {
+				status = "Stop the current build before moving its anchor.";
+				return;
+			}
+			if (y < 0 || y >= 256 || (sizeY > 0 && y + sizeY > 256)) {
+				status = "Anchor is outside the valid build height.";
+				return;
+			}
+			BlockPos candidate = new BlockPos(x, y, z);
+			if (!mc.world.getWorldBorder().contains(candidate)) {
+				status = "Anchor is outside the world border.";
+				return;
+			}
+			if (sizeX > 0 && sizeY > 0 && sizeZ > 0) {
+				for (PlannedBlock block : blocks) {
+					if (!mc.world.getWorldBorder().contains(candidate.add(block.pos))) {
+						status = "The selected anchor would place part of the blueprint outside the world border.";
+						return;
+					}
+				}
+			}
+			anchor = candidate;
+			status = "Build anchor set to " + formatPosition(anchor) + ".";
+		}
+
+		public void rotateClockwise() {
+			if (building) {
+				status = "Stop the current build before rotating the blueprint.";
+				return;
+			}
+			if (blocks.isEmpty()) {
+				status = "Import a blueprint before rotating it.";
+				return;
+			}
+			List<PlannedBlock> rotated = new ArrayList<PlannedBlock>(blocks.size());
+			for (PlannedBlock block : blocks) {
+				BlockPos pos = new BlockPos(sizeZ - 1 - block.pos.getZ(), block.pos.getY(), block.pos.getX());
+				rotated.add(new PlannedBlock(pos, block.state.withRotation(Rotation.CLOCKWISE_90)));
+			}
+			blocks.clear();
+			blocks.addAll(rotated);
+			int previousSizeX = sizeX;
+			sizeX = sizeZ;
+			sizeZ = previousSizeX;
+			rotationDegrees = (rotationDegrees + 90) % 360;
+			materials.clear();
+			for (PlannedBlock block : blocks) {
+				String key = getMaterialKey(block.state);
+				Integer count = materials.get(key);
+				materials.put(key, count == null ? 1 : count + 1);
+			}
+			completedBlocks = null;
+			completedBlockCount = 0;
+			plannedBlockIndex.clear();
+			status = "Blueprint rotated to " + rotationDegrees + " degrees clockwise.";
 		}
 
 		public void beginMarkSchematicCorner(int corner) {
@@ -362,90 +685,231 @@ public final class Singleplayer {
 		}
 
 		private void placeNextBlock() {
-			while (nextBlock < blocks.size()) {
-				PlannedBlock planned = blocks.get(nextBlock);
-				BlockPos target = anchor.add(planned.pos);
-				if (!mc.world.isBlockLoaded(target) || !mc.world.getWorldBorder().contains(target)) {
-					stopBuildWithStatus("Build stopped: a target block is no longer loaded or is outside the world border.");
+			if (completedBlocks == null || completedBlocks.length != blocks.size()) {
+				completedBlocks = new boolean[blocks.size()];
+				completedBlockCount = 0;
+			}
+			if (plannedBlockIndex.size() != blocks.size()) {
+				plannedBlockIndex.clear();
+				for (int i = 0; i < blocks.size(); i++) {
+					BlockPos local = blocks.get(i).pos;
+					plannedBlockIndex.put(packPosition(local.getX(), local.getY(), local.getZ()), i);
+				}
+			}
+			int placedThisTick = 0;
+			placementBudget = Math.min(2.0D, placementBudget + getPlaceSpeed() / 20.0D);
+			String waitingStatus = null;
+			nearbyBlockIndices.clear();
+			int localCenterX = MathHelper.floor(mc.player.posX) - anchor.getX();
+			int localCenterY = MathHelper.floor(mc.player.posY) - anchor.getY();
+			int localCenterZ = MathHelper.floor(mc.player.posZ) - anchor.getZ();
+			for (int y = localCenterY - 6; y <= localCenterY + 6; y++) {
+				for (int z = localCenterZ - 6; z <= localCenterZ + 6; z++) {
+					for (int x = localCenterX - 6; x <= localCenterX + 6; x++) {
+						Integer index = plannedBlockIndex.get(packPosition(x, y, z));
+						if (index != null && !completedBlocks[index]) {
+							nearbyBlockIndices.add(index);
+						}
+					}
+				}
+			}
+			Collections.sort(nearbyBlockIndices, new Comparator<Integer>() {
+				@Override
+				public int compare(Integer first, Integer second) {
+					BlockPos firstPos = anchor.add(blocks.get(first).pos);
+					BlockPos secondPos = anchor.add(blocks.get(second).pos);
+					return Double.compare(mc.player.getDistanceSqToCenter(firstPos),
+							mc.player.getDistanceSqToCenter(secondPos));
+				}
+			});
+			for (Integer candidate : nearbyBlockIndices) {
+				if (placedThisTick >= 2) break;
+				int index = candidate.intValue();
+				if (completedBlocks[index]) {
+					continue;
+				}
+				PlannedBlock planned = blocks.get(index);
+				int targetX = anchor.getX() + planned.pos.getX();
+				int targetY = anchor.getY() + planned.pos.getY();
+				int targetZ = anchor.getZ() + planned.pos.getZ();
+				double dx = targetX + 0.5D - mc.player.posX;
+				double dy = targetY + 0.5D - mc.player.posY;
+				double dz = targetZ + 0.5D - mc.player.posZ;
+				if (dx * dx + dy * dy + dz * dz > 36.0D) {
+					continue;
+				}
+				BlockPos target = new BlockPos(targetX, targetY, targetZ);
+				if (!mc.world.getWorldBorder().contains(target)) {
+					stopBuildWithStatus("Build stopped: a target block is outside the world border.");
 					return;
+				}
+				if (!mc.world.isBlockLoaded(target)) {
+					waitingStatus = "Waiting for destination chunks to load.";
+					continue;
 				}
 
 				IBlockState existing = mc.world.getBlockState(target);
-				if (existing.equals(planned.state)) {
-					++nextBlock;
+					if (matchesPlannedState(existing, planned.state)) {
+					completedBlocks[index] = true;
+					completedBlockCount++;
 					continue;
 				}
 				if (!existing.getMaterial().isReplaceable()) {
-					stopBuildWithStatus("Build stopped: a target position is occupied by a different block.");
-					return;
+					waitingStatus = "A nearby blueprint position is blocked by another block.";
+					continue;
 				}
 
 				int slot = findHotbarSlot(planned);
 				if (slot < 0) {
-					stopBuildWithStatus("Build stopped: the required block and variant are not in your hotbar.");
-					return;
+					waitingStatus = "Missing a required block or variant in your hotbar.";
+					continue;
+				}
+				if (placementBudget < 1.0D) {
+					continue;
 				}
 				mc.player.inventory.currentItem = slot;
 				ItemStack held = mc.player.getHeldItemMainhand();
 				boolean attemptedPlacement = false;
-				for (EnumFacing direction : EnumFacing.values()) {
-					BlockPos support = target.offset(direction.getOpposite());
-					if (!mc.world.isBlockLoaded(support)
-							|| !mc.world.getBlockState(support).getMaterial().isSolid()
-							|| mc.player.getDistanceSqToCenter(support) > PLACE_REACH_SQUARED
-							|| !((ItemBlock) held.getItem()).canPlaceBlockOnSide(
-									mc.world, support, direction, mc.player, held)) {
-						continue;
+				EnumFacing preferredFace = getPreferredPlacementFace(planned.state);
+				EnumFacing plannedFacing = getStateFacing(planned.state);
+				float originalYaw = mc.player.rotationYaw;
+				if (planned.state.getBlock() instanceof BlockStairs && plannedFacing != null) {
+					mc.player.rotationYaw = plannedFacing.getHorizontalAngle();
+				}
+				try {
+					if (preferredFace != null) {
+						attemptedPlacement = tryPlaceOnFace(target, preferredFace, held);
 					}
-
-					Vec3d hitVec = new Vec3d(
-							support.getX() + 0.5D + direction.getFrontOffsetX() * 0.5D,
-							support.getY() + 0.5D + direction.getFrontOffsetY() * 0.5D,
-							support.getZ() + 0.5D + direction.getFrontOffsetZ() * 0.5D);
-					boolean wasSneaking = mc.player.isSneaking();
-					mc.player.setSneaking(true);
-					EnumActionResult result;
-					try {
-						result = mc.playerController.processRightClickBlock(mc.player, mc.world, support, direction,
-								hitVec, EnumHand.MAIN_HAND);
-					} finally {
-						mc.player.setSneaking(wasSneaking);
+					if (!attemptedPlacement) {
+						for (EnumFacing direction : EnumFacing.values()) {
+							if (direction != preferredFace && tryPlaceOnFace(target, direction, held)) {
+								attemptedPlacement = true;
+								break;
+							}
+						}
 					}
-					if (result == EnumActionResult.SUCCESS) {
-						attemptedPlacement = true;
-						break;
-					}
+				} finally {
+					mc.player.rotationYaw = originalYaw;
 				}
 
 				if (!attemptedPlacement) {
-					stopBuildWithStatus("Build stopped: no reachable solid support face can place the next block.");
-					return;
+					waitingStatus = "Move closer to a blueprint block with a reachable support face.";
+					continue;
 				}
-				ticksUntilNextBlock = buildDelay == null ? 4 : (int) buildDelay.getValDouble();
-				status = "Placement " + (nextBlock + 1) + " / " + blocks.size()
-						+ " attempted. Keep the next block within reach.";
-				return;
+				completedBlocks[index] = true;
+				completedBlockCount++;
+				placedThisTick++;
+				placementBudget -= 1.0D;
 			}
 
-			building = false;
-			restoreHotbarSlot();
-			status = "Finished placing " + blocks.size() + " blueprint blocks.";
+			if (completedBlockCount >= blocks.size()) {
+				building = false;
+				restoreHotbarSlot();
+				status = "Finished placing " + blocks.size() + " blueprint blocks.";
+			} else if (placedThisTick > 0) {
+				status = "Placed " + completedBlockCount + " / " + blocks.size()
+						+ " at " + getPlaceSpeed() + " blocks/sec.";
+			} else {
+				status = waitingStatus == null
+						? "Move near unbuilt preview blocks to continue automatically."
+						: waitingStatus;
+			}
+		}
+
+		private static long packPosition(int x, int y, int z) {
+			return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (long) (y & 0xFFF);
+		}
+
+		private boolean tryPlaceOnFace(BlockPos target, EnumFacing direction, ItemStack held) {
+			BlockPos support = target.offset(direction.getOpposite());
+			if (!mc.world.isBlockLoaded(support)
+					|| mc.world.getBlockState(support).getMaterial().isReplaceable()
+					|| mc.player.getDistanceSqToCenter(support) > PLACE_REACH_SQUARED
+					|| (held.getItem() instanceof ItemBlock
+							&& !((ItemBlock) held.getItem()).canPlaceBlockOnSide(
+									mc.world, support, direction, mc.player, held))) {
+				return false;
+			}
+
+			Vec3d hitVec = new Vec3d(
+					support.getX() + 0.5D + direction.getFrontOffsetX() * 0.5D,
+					support.getY() + 0.5D + direction.getFrontOffsetY() * 0.5D,
+					support.getZ() + 0.5D + direction.getFrontOffsetZ() * 0.5D);
+			boolean wasSneaking = mc.player.isSneaking();
+			mc.player.setSneaking(true);
+			try {
+				return mc.playerController.processRightClickBlock(mc.player, mc.world, support, direction, hitVec,
+						EnumHand.MAIN_HAND) == EnumActionResult.SUCCESS;
+			} finally {
+				mc.player.setSneaking(wasSneaking);
+			}
+		}
+
+		private EnumFacing getPreferredPlacementFace(IBlockState state) {
+			if (state.getBlock() instanceof BlockStairs) {
+				return state.getValue(BlockStairs.HALF) == BlockStairs.EnumHalf.TOP
+						? EnumFacing.DOWN : EnumFacing.UP;
+			}
+			for (Map.Entry<IProperty<?>, Comparable<?>> property : state.getProperties().entrySet()) {
+				Object value = property.getValue();
+				if ("facing".equals(property.getKey().getName()) && value instanceof EnumFacing) {
+					return (EnumFacing) value;
+				}
+				if ("axis".equals(property.getKey().getName()) && value instanceof EnumFacing.Axis) {
+					EnumFacing.Axis axis = (EnumFacing.Axis) value;
+					if (axis == EnumFacing.Axis.X) return EnumFacing.EAST;
+					if (axis == EnumFacing.Axis.Y) return EnumFacing.UP;
+					if (axis == EnumFacing.Axis.Z) return EnumFacing.SOUTH;
+				}
+			}
+			return null;
+		}
+
+		private EnumFacing getStateFacing(IBlockState state) {
+			for (Map.Entry<IProperty<?>, Comparable<?>> property : state.getProperties().entrySet()) {
+				if ("facing".equals(property.getKey().getName()) && property.getValue() instanceof EnumFacing) {
+					return (EnumFacing) property.getValue();
+				}
+			}
+			return null;
 		}
 
 		private int findHotbarSlot(PlannedBlock planned) {
-			Block block = planned.state.getBlock();
-			int metadata = block.getMetaFromState(planned.state);
+			Item requiredItem = Item.getItemFromBlock(planned.state.getBlock());
+			if (requiredItem == Items.AIR) {
+				return -1;
+			}
 			for (int slot = 0; slot < 9; ++slot) {
 				ItemStack stack = mc.player.inventory.getStackInSlot(slot);
-				if (stack == null || stack.func_190926_b() || !(stack.getItem() instanceof ItemBlock)) {
+				if (stack == null || stack.func_190926_b() || stack.getItem() != requiredItem) {
 					continue;
 				}
-				ItemBlock item = (ItemBlock) stack.getItem();
-				if (item.getBlock() == block && item.getMetadata(stack.getMetadata()) == metadata) {
+				if (requiredItem instanceof ItemBlock && requiredItem.getHasSubtypes()
+						&& !matchesItemVariant((ItemBlock) requiredItem, stack, planned.state)) {
+					continue;
+				}
+				if (requiredItem instanceof ItemBlockSpecial || requiredItem instanceof ItemBlock) {
 					return slot;
 				}
 			}
 			return -1;
+		}
+
+		private boolean matchesItemVariant(ItemBlock item, ItemStack stack, IBlockState planned) {
+			Block block = planned.getBlock();
+			IBlockState itemState = block.getStateFromMeta(item.getMetadata(stack.getMetadata()));
+			for (Map.Entry<IProperty<?>, Comparable<?>> property : planned.getProperties().entrySet()) {
+				String name = property.getKey().getName();
+				if ("facing".equals(name) || "half".equals(name) || "axis".equals(name)
+						|| "rotation".equals(name) || isDynamicPreviewProperty(name)) {
+					continue;
+				}
+				Comparable<?> itemValue = itemState.getProperties().get(property.getKey());
+				if (!property.getValue().equals(itemValue)) {
+					return false;
+				}
+			}
+			return true;
 		}
 
 		private void stopBuildWithStatus(String message) {
@@ -570,8 +1034,8 @@ public final class Singleplayer {
 			sizeY = loadedSizeY;
 			sizeZ = loadedSizeZ;
 			currentLayer = 0;
-			nextBlock = 0;
 			building = false;
+			rotationDegrees = 0;
 			blueprintName = fileName;
 			status = "Loaded " + fileName + " (" + sizeX + " x " + sizeY + " x " + sizeZ + ").";
 		}
@@ -648,8 +1112,8 @@ public final class Singleplayer {
 			sizeY = loadedSizeY;
 			sizeZ = loadedSizeZ;
 			currentLayer = 0;
-			nextBlock = 0;
 			building = false;
+			rotationDegrees = 0;
 			blueprintName = fileName;
 		}
 
@@ -690,6 +1154,24 @@ public final class Singleplayer {
 
 		public int getBlockCount() {
 			return blocks.size();
+		}
+
+		public int getPlacedBlockCount() {
+			return completedBlockCount;
+		}
+
+		public int getPlaceSpeed() {
+			return placeSpeed == null ? 6 : (int) placeSpeed.getValDouble();
+		}
+
+		public int getRotationDegrees() {
+			return rotationDegrees;
+		}
+
+		public void adjustPlaceSpeed(int amount) {
+			if (placeSpeed != null) {
+				placeSpeed.setValDouble(placeSpeed.getValDouble() + amount);
+			}
 		}
 
 		public String getBlueprintName() {
@@ -734,11 +1216,21 @@ public final class Singleplayer {
 
 		private Setting searchRange;
 		private Setting searchInterval;
+		private Setting miningSpeed;
 		private BlockPos oreTarget;
+		private BlockPos miningBlock;
 		private BlockPos minedOrePosition;
 		private EntityItem dropTarget;
 		private int ticksUntilSearch;
 		private int ticksWaitingForDrop;
+		private int searchRangeSnapshot;
+		private int searchCenterX;
+		private int searchCenterY;
+		private int searchCenterZ;
+		private int searchIndex;
+		private double nearestSearchDistanceSq;
+		private BlockPos nearestSearchOre;
+		private boolean searchActive;
 		private int originalHotbarSlot = -1;
 		private boolean miningStarted;
 		private boolean steering;
@@ -751,18 +1243,20 @@ public final class Singleplayer {
 		}
 
 		public void registerSettings(SettingsManager manager) {
-			searchRange = new Setting("Search Range", this, 10.0D, 2.0D, 16.0D, true);
-			searchInterval = new Setting("Search Delay", this, 20.0D, 1.0D, 100.0D, true);
+			searchRange = new Setting("Search Range", this, 12.0D, 2.0D, 24.0D, true);
+			searchInterval = new Setting("Search Delay", this, 1.0D, 1.0D, 100.0D, true);
+			miningSpeed = new Setting("Mining Speed", this, 2.0D, 1.0D, 4.0D, true);
 			manager.rSetting(searchRange);
 			manager.rSetting(searchInterval);
+			manager.rSetting(miningSpeed);
 		}
 
 		private int getSearchRange() {
-			return searchRange == null ? 10 : (int) searchRange.getValDouble();
+			return searchRange == null ? 12 : (int) searchRange.getValDouble();
 		}
 
 		private int getSearchInterval() {
-			return searchInterval == null ? 20 : (int) searchInterval.getValDouble();
+			return searchInterval == null ? 1 : (int) searchInterval.getValDouble();
 		}
 
 		@Override
@@ -810,31 +1304,16 @@ public final class Singleplayer {
 				updateDropTarget();
 				return;
 			}
-			if (ticksUntilSearch > 0) {
+			if (!searchActive && ticksUntilSearch > 0) {
 				--ticksUntilSearch;
-				return;
+				if (ticksUntilSearch > 0) return;
 			}
-
-			oreTarget = findNearestOre();
-			ticksUntilSearch = getSearchInterval();
-			if (oreTarget != null) {
-				Block block = mc.world.getBlockState(oreTarget).getBlock();
-				if (findPickaxe(mc.world.getBlockState(oreTarget)) < 0) {
-					notifyMissingPickaxe();
-					oreTarget = null;
-					return;
-				}
-				mc.player.addChatMessage(new TextComponentString(
-						"Auto Mine: ore found within " + getSearchRange() + " blocks."));
-				moveOrMineOre(block);
-			} else {
-				restoreMovement();
-			}
+			if (!searchActive) beginOreSearch();
+			continueOreSearch();
 		}
 
 		private void updateOreTarget() {
-			Block block = mc.world.getBlockState(oreTarget).getBlock();
-			if (!isOre(block)) {
+			if (!isOre(mc.world.getBlockState(oreTarget).getBlock())) {
 				minedOrePosition = oreTarget;
 				oreTarget = null;
 				ticksWaitingForDrop = DROP_SEARCH_TICKS;
@@ -843,34 +1322,66 @@ public final class Singleplayer {
 				restoreHotbarSlot();
 				return;
 			}
-			moveOrMineOre(block);
+			moveOrMineOre();
 		}
 
-		private void moveOrMineOre(Block block) {
+		private void moveOrMineOre() {
 			BlockPos target = oreTarget;
-			double distanceSq = mc.player.getDistanceSqToCenter(target);
-			if (distanceSq > MINING_REACH_SQUARED) {
-				stopMining();
-				restoreHotbarSlot();
-				steerTo(target.getX() + 0.5D, target.getY() + 0.5D, target.getZ() + 0.5D);
-				return;
+			BlockPos blockToMine = target;
+			EnumFacing hitSide = EnumFacing.UP;
+			if (mc.player.getDistanceSqToCenter(target) > MINING_REACH_SQUARED) {
+				Vec3d eyes = mc.player.getPositionEyes(1.0F);
+				Vec3d oreCenter = new Vec3d(target.getX() + 0.5D, target.getY() + 0.5D, target.getZ() + 0.5D);
+				RayTraceResult obstruction = mc.world.rayTraceBlocks(eyes, oreCenter);
+				if (obstruction == null || obstruction.typeOfHit != RayTraceResult.Type.BLOCK
+						|| target.equals(obstruction.getBlockPos())) {
+					stopMining();
+					restoreHotbarSlot();
+					steerTo(oreCenter.xCoord, oreCenter.yCoord, oreCenter.zCoord);
+					return;
+				}
+				blockToMine = obstruction.getBlockPos();
+				if (mc.player.getDistanceSqToCenter(blockToMine) > MINING_REACH_SQUARED) {
+					stopMining();
+					restoreHotbarSlot();
+					steerTo(blockToMine.getX() + 0.5D, blockToMine.getY() + 0.5D,
+							blockToMine.getZ() + 0.5D);
+					return;
+				}
+				if (obstruction.sideHit != null) {
+					hitSide = obstruction.sideHit;
+				}
 			}
 
 			restoreMovement();
-			int toolSlot = findPickaxe(mc.world.getBlockState(target));
+			int toolSlot = findPickaxe(mc.world.getBlockState(blockToMine));
 			if (toolSlot < 0) {
 				stopMining();
 				restoreHotbarSlot();
+				if (!blockToMine.equals(target)) {
+					steerTo(blockToMine.getX() + 0.5D, blockToMine.getY() + 0.5D,
+							blockToMine.getZ() + 0.5D);
+					return;
+				}
 				notifyMissingPickaxe();
 				oreTarget = null;
 				ticksUntilSearch = getSearchInterval();
 				return;
 			}
+			if (!blockToMine.equals(miningBlock)) {
+				stopMining();
+			}
 			if (originalHotbarSlot < 0) {
 				originalHotbarSlot = mc.player.inventory.currentItem;
 			}
 			mc.player.inventory.currentItem = toolSlot;
-			mc.playerController.onPlayerDamageBlock(target, EnumFacing.UP);
+			int damageSteps = SingleplayerWorld.isSingleplayer() && miningSpeed != null
+					? (int) miningSpeed.getValDouble() : 1;
+			for (int step = 0; step < damageSteps; step++) {
+				if (!mc.playerController.onPlayerDamageBlock(blockToMine, hitSide)) break;
+				if (mc.world.getBlockState(blockToMine).getBlock() == Blocks.AIR) break;
+			}
+			miningBlock = blockToMine;
 			miningStarted = true;
 		}
 
@@ -902,28 +1413,65 @@ public final class Singleplayer {
 			restoreMovement();
 		}
 
-		private BlockPos findNearestOre() {
-			BlockPos center = new BlockPos(mc.player.posX, mc.player.posY, mc.player.posZ);
-			BlockPos nearest = null;
-			int search = getSearchRange();
-			double nearestDistanceSq = search * search;
-			for (int y = Math.max(0, center.getY() - search);
-					y <= Math.min(255, center.getY() + search); ++y) {
-				for (int z = center.getZ() - search; z <= center.getZ() + search; ++z) {
-					for (int x = center.getX() - search; x <= center.getX() + search; ++x) {
-						BlockPos pos = new BlockPos(x, y, z);
-						if (!mc.world.isBlockLoaded(pos) || !isOre(mc.world.getBlockState(pos).getBlock())) {
-							continue;
-						}
-						double distanceSq = mc.player.getDistanceSqToCenter(pos);
-						if (distanceSq <= nearestDistanceSq) {
-							nearest = pos;
-							nearestDistanceSq = distanceSq;
-						}
-					}
+		private void beginOreSearch() {
+			searchRangeSnapshot = getSearchRange();
+			searchCenterX = MathHelper.floor(mc.player.posX);
+			searchCenterY = MathHelper.floor(mc.player.posY);
+			searchCenterZ = MathHelper.floor(mc.player.posZ);
+			searchIndex = 0;
+			nearestSearchDistanceSq = (double) searchRangeSnapshot * searchRangeSnapshot;
+			nearestSearchOre = null;
+			searchActive = true;
+		}
+
+		private void continueOreSearch() {
+			int movementThreshold = Math.max(3, searchRangeSnapshot / 2);
+			if (Math.abs(MathHelper.floor(mc.player.posX) - searchCenterX) > movementThreshold
+					|| Math.abs(MathHelper.floor(mc.player.posZ) - searchCenterZ) > movementThreshold) {
+				searchActive = false;
+				ticksUntilSearch = 0;
+				return;
+			}
+			final int blockBudget = 4096;
+			int width = searchRangeSnapshot * 2 + 1;
+			int total = width * width * width;
+			int scanned = 0;
+			while (searchIndex < total && scanned < blockBudget) {
+				int index = searchIndex++;
+				scanned++;
+				int dx = index % width - searchRangeSnapshot;
+				int dz = index / width % width - searchRangeSnapshot;
+				int dy = index / (width * width) - searchRangeSnapshot;
+				int distanceGridSq = dx * dx + dy * dy + dz * dz;
+				if (distanceGridSq > searchRangeSnapshot * searchRangeSnapshot) continue;
+				int y = searchCenterY + dy;
+				if (y < 0 || y >= 256) continue;
+				BlockPos pos = new BlockPos(searchCenterX + dx, y, searchCenterZ + dz);
+				if (!mc.world.isBlockLoaded(pos)) continue;
+				if (!isOre(mc.world.getBlockState(pos).getBlock())) continue;
+				double distanceSq = mc.player.getDistanceSqToCenter(pos);
+				if (distanceSq <= nearestSearchDistanceSq) {
+					nearestSearchOre = pos;
+					nearestSearchDistanceSq = distanceSq;
 				}
 			}
-			return nearest;
+
+			if (searchIndex < total) return;
+			searchActive = false;
+			ticksUntilSearch = getSearchInterval();
+			oreTarget = nearestSearchOre;
+			if (oreTarget == null) {
+				restoreMovement();
+				return;
+			}
+			if (findPickaxe(mc.world.getBlockState(oreTarget)) < 0) {
+				notifyMissingPickaxe();
+				oreTarget = null;
+				return;
+			}
+			mc.player.addChatMessage(new TextComponentString(
+					"Auto Mine: ore found within " + searchRangeSnapshot + " blocks."));
+			moveOrMineOre();
 		}
 
 		private EntityItem findOreDropNear(BlockPos origin) {
@@ -1009,6 +1557,7 @@ public final class Singleplayer {
 				mc.playerController.resetBlockRemoving();
 			}
 			miningStarted = false;
+			miningBlock = null;
 		}
 
 		private void restoreMovement() {
@@ -1036,6 +1585,10 @@ public final class Singleplayer {
 
 		private void resetTargets() {
 			oreTarget = null;
+			miningBlock = null;
+			searchActive = false;
+			searchIndex = 0;
+			nearestSearchOre = null;
 			minedOrePosition = null;
 			dropTarget = null;
 			ticksUntilSearch = 0;

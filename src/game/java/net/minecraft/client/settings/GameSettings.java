@@ -202,7 +202,7 @@ public class GameSettings {
 				this.keyBindsHotbar);
 		this.difficulty = EnumDifficulty.NORMAL;
 		this.lastServer = "";
-		this.fovSetting = 70.0F;
+		this.fovSetting = 120.0F;
 		this.language = "en_us";
 		this.mc = mcIn;
 		GameSettings.Options.RENDER_DISTANCE.setValueMax(16.0F);
@@ -222,7 +222,7 @@ public class GameSettings {
 				this.keyBindsHotbar);
 		this.difficulty = EnumDifficulty.NORMAL;
 		this.lastServer = "";
-		this.fovSetting = 70.0F;
+		this.fovSetting = 120.0F;
 		this.language = "en_us";
 	}
 
@@ -602,7 +602,7 @@ public class GameSettings {
 				if (f1 == 70.0F) {
 					return s + I18n.format("options.fov.min");
 				} else {
-					return f1 == 110.0F ? s + I18n.format("options.fov.max") : s + (int) f1;
+					return f1 == 120.0F ? s + I18n.format("options.fov.max") : s + (int) f1;
 				}
 			} else if (settingOption == GameSettings.Options.FRAMERATE_LIMIT) {
 				return f1 == settingOption.valueMax ? s + I18n.format("options.framerateLimit.max")
@@ -1222,7 +1222,7 @@ public class GameSettings {
 
 	public static enum Options {
 		INVERT_MOUSE("options.invertMouse", false, true), SENSITIVITY("options.sensitivity", true, false),
-		FOV("options.fov", true, false, 30.0F, 110.0F, 1.0F), GAMMA("options.gamma", true, false),
+		FOV("options.fov", true, false, 30.0F, 120.0F, 1.0F), GAMMA("options.gamma", true, false),
 		SATURATION("options.saturation", true, false),
 		RENDER_DISTANCE("options.renderDistance", true, false, 2.0F, 16.0F, 1.0F),
 		VIEW_BOBBING("options.viewBobbing", false, true), ANAGLYPH("options.anaglyph", false, true),

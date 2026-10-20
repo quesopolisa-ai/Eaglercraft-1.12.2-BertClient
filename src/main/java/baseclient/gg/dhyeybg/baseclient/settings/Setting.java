@@ -19,6 +19,7 @@ public class Setting {
 	private double min;
 	private double max;
 	private boolean onlyint = false;
+	private boolean hidden;
 
 
 	public Setting(String name, Module parent, String sval, ArrayList<String> options){
@@ -50,6 +51,12 @@ public class Setting {
 	public static Setting textBox(String name, Module parent, double dval, double min, double max){
 		Setting setting = new Setting(name, parent, dval, min, max, false);
 		setting.mode = "Number";
+		return setting;
+	}
+
+	public static Setting hiddenTextBox(String name, Module parent, double dval, double min, double max){
+		Setting setting = textBox(name, parent, dval, min, max);
+		setting.hidden = true;
 		return setting;
 	}
 
@@ -122,5 +129,9 @@ public class Setting {
 
 	public boolean onlyInt(){
 		return this.onlyint;
+	}
+
+	public boolean isHidden(){
+		return this.hidden;
 	}
 }

@@ -1156,6 +1156,9 @@ public class Item {
 
 	private static void registerItem(int id, ResourceLocation textualID, Item itemIn) {
 		REGISTRY.register(id, textualID, itemIn);
+		if (itemIn instanceof ItemBlockSpecial) {
+			BLOCK_TO_ITEM.put(((ItemBlockSpecial) itemIn).getBlock(), itemIn);
+		}
 	}
 
 	public ItemStack func_190903_i() {

@@ -28,13 +28,13 @@ public class Checkbox extends Component {
 		int left = parent.parent.getX();
 		int top = parent.parent.getY() + offset;
 		int right = left + parent.parent.getWidth();
-		Gui.drawRect(left + 2, top, right, top + 14, this.hovered ? 0xFF292331 : 0xFF15151C);
-		Gui.drawRect(left, top, left + 2, top + 14, 0xFF202027);
-		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(this.op.getName(), left + 7, top + 3, 0xFFE2E2E8);
+		Gui.drawRect(left + 2, top, right, top + 14, this.hovered ? 0xFF202C39 : 0xFF131A23);
+		Gui.drawRect(left, top, left + 2, top + 14, 0xFF263241);
+		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(this.op.getName(), left + 9, top + 3, 0xFFE2EAF2);
 		int boxLeft = right - 17;
 		Gui.drawRect(boxLeft, top + 4, boxLeft + 9, top + 13, 0xFF777780);
 		if (this.op.getValBoolean()) {
-			Gui.drawRect(boxLeft + 2, top + 6, boxLeft + 7, top + 11, 0xFFBD62FF);
+			Gui.drawRect(boxLeft + 2, top + 6, boxLeft + 7, top + 11, 0xFF5DC8E8);
 		}
 	}
 

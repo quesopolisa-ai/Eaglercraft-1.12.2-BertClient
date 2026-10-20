@@ -44,9 +44,9 @@ public class NumberBox extends Component {
 		int left = parent.parent.getX();
 		int top = parent.parent.getY() + offset;
 		int right = left + parent.parent.getWidth();
-		int background = this.focused ? 0xFF34223F : (this.hovered ? 0xFF292331 : 0xFF15151C);
+		int background = this.focused ? 0xFF173C4A : (this.hovered ? 0xFF202C39 : 0xFF131A23);
 		Gui.drawRect(left + 2, top, right, top + 14, background);
-		Gui.drawRect(left, top, left + 2, top + 14, 0xFF202027);
+		Gui.drawRect(left, top, left + 2, top + 14, 0xFF263241);
 		String shown;
 		if (this.focused) {
 			shown = this.text + ((System.currentTimeMillis() / 500L) % 2L == 0L ? "_" : "");
@@ -58,10 +58,10 @@ public class NumberBox extends Component {
 		GlStateManager.pushMatrix();
 		GlStateManager.scale(0.75F, 0.75F, 1.0F);
 		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(label,
-				(int) ((left + 6) / 0.75F), (int) ((top + 2) / 0.75F), 0xFFBEBEC8);
+				(int) ((left + 6) / 0.75F), (int) ((top + 2) / 0.75F), 0xFFB8C4D0);
 		Minecraft.getMinecraft().fontRendererObj.drawStringWithShadow(shown,
 				(int) ((right - valueWidth - 6) / 0.75F), (int) ((top + 2) / 0.75F),
-				this.focused ? 0xFFE8BAFF : 0xFFE2E2E8);
+				this.focused ? 0xFF80D8E8 : 0xFFE2EAF2);
 		GlStateManager.popMatrix();
 	}
 

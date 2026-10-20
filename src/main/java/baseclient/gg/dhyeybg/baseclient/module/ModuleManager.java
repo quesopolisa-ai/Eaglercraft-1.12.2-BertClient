@@ -91,7 +91,6 @@ public class ModuleManager {
 		this.modules.add(new XRay());
 		this.modules.add(new Freecam());
 		this.modules.add(new Waypoints());
-		this.modules.add(new Zoom());
 		this.modules.add(new TimeChanger());
 		this.modules.add(new WeatherChanger());
 		this.modules.add(new NoRender());

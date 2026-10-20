@@ -18,6 +18,7 @@ import net.minecraft.client.renderer.ViewFrustum;
 import net.minecraft.client.renderer.tileentity.TileEntityRendererDispatcher;
 import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.init.Blocks;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.BlockRenderLayer;
 import net.minecraft.util.EnumBlockRenderType;
@@ -108,7 +109,16 @@ public class RenderChunk {
 			return;
 		}
 		
-		regionrendercache = new ChunkCache(this.world, blockpos.add(-1, -1, -1), blockpos1.add(1, 1, 1), 1);
+		baseclient.gg.dhyeybg.baseclient.BaseClient baseClient =
+				baseclient.gg.dhyeybg.baseclient.BaseClient.instance;
+		baseclient.gg.dhyeybg.baseclient.module.utilities.XRay xray = baseClient != null
+				&& baseClient.isModuleEnabled("XRay")
+						? (baseclient.gg.dhyeybg.baseclient.module.utilities.XRay) baseClient.moduleManager.getModule("XRay")
+						: null;
+		BlockPos cacheFrom = blockpos.add(-1, -1, -1);
+		BlockPos cacheTo = blockpos1.add(1, 1, 1);
+		regionrendercache = xray == null ? new ChunkCache(this.world, cacheFrom, cacheTo, 1)
+				: new XRayChunkCache(this.world, cacheFrom, cacheTo, 1, xray);
 		generator.setCompiledChunk(compiledChunk);
 
 		VisGraph lvt_9_1_ = new VisGraph();
@@ -122,11 +132,7 @@ public class RenderChunk {
 			for (BlockPos blockpos$mutableblockpos : BlockPos.getAllInBoxMutable(blockpos, blockpos1)) {
 				IBlockState iblockstate = regionrendercache.getBlockStateFaster(blockpos$mutableblockpos);
 				Block block = iblockstate.getBlock();
-				baseclient.gg.dhyeybg.baseclient.BaseClient baseClient =
-						baseclient.gg.dhyeybg.baseclient.BaseClient.instance;
-				if (baseClient != null && baseClient.isModuleEnabled("XRay")
-						&& !((baseclient.gg.dhyeybg.baseclient.module.utilities.XRay)
-								baseClient.moduleManager.getModule("XRay")).shouldRender(iblockstate)) {
+				if (xray != null && !xray.shouldRenderBlock(iblockstate)) {
 					continue;
 				}
 
@@ -308,5 +314,30 @@ public class RenderChunk {
 
 	public World getWorld() {
 		return this.world;
+	}
+
+	private static final class XRayChunkCache extends ChunkCache {
+		private final baseclient.gg.dhyeybg.baseclient.module.utilities.XRay xray;
+		private final IBlockState airState = Blocks.AIR.getDefaultState();
+
+		private XRayChunkCache(World world, BlockPos from, BlockPos to, int padding,
+				baseclient.gg.dhyeybg.baseclient.module.utilities.XRay xray) {
+			super(world, from, to, padding);
+			this.xray = xray;
+		}
+
+		@Override
+		public IBlockState getBlockState(BlockPos pos) {
+			return maskHiddenState(super.getBlockState(pos));
+		}
+
+		@Override
+		public IBlockState getBlockStateFaster(BlockPos pos) {
+			return maskHiddenState(super.getBlockStateFaster(pos));
+		}
+
+		private IBlockState maskHiddenState(IBlockState state) {
+			return this.xray.shouldRenderBlock(state) ? state : this.airState;
+		}
 	}
 }

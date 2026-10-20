@@ -23,6 +23,10 @@ public class ItemBlockSpecial extends Item {
 		this.block = block;
 	}
 
+	public Block getBlock() {
+		return this.block;
+	}
+
 	/**
 	 * Called when a Block is right-clicked with this Item
 	 */
