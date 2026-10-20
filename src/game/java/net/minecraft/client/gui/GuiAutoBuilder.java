@@ -303,7 +303,7 @@ public class GuiAutoBuilder extends GuiScreen {
 		if (block == null) {
 			return material;
 		}
-		Item item = Item.getItemFromBlock(block);
+		Item item = AutoBuilder.getPlacementItem(block);
 		if (item == Items.AIR) {
 			return "No placement item: " + block.getLocalizedName();
 		}

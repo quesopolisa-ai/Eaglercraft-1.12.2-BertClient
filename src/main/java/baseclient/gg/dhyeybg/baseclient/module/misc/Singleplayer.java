@@ -73,6 +73,7 @@ public final class Singleplayer {
 		private Setting placeSpeed;
 		private Setting showPreview;
 		private Setting previewRange;
+		private Setting buildOnTop;
 		private final List<PlannedBlock> blocks = new ArrayList<PlannedBlock>();
 		private final Map<Long, Integer> plannedBlockIndex = new HashMap<Long, Integer>();
 		private final List<Integer> nearbyBlockIndices = new ArrayList<Integer>();
@@ -87,6 +88,8 @@ public final class Singleplayer {
 		private String status = "Set build coordinates, import a blueprint, then preview and build.";
 		private boolean building;
 		private boolean[] completedBlocks;
+		private int[] pendingUntilTick;
+		private boolean anchorSettled;
 		private int completedBlockCount;
 		private double placementBudget;
 		private int rotationDegrees;
@@ -103,9 +106,11 @@ public final class Singleplayer {
 			placeSpeed = new Setting("Place Speed", this, 6.0D, 1.0D, 30.0D, true);
 			showPreview = new Setting("World Preview", this, true);
 			previewRange = Setting.textBox("Preview Range", this, 64.0D, 8.0D, 128.0D);
+			buildOnTop = new Setting("Build On Top", this, true);
 			manager.rSetting(placeSpeed);
 			manager.rSetting(showPreview);
 			manager.rSetting(previewRange);
+			manager.rSetting(buildOnTop);
 		}
 
 		@Override
@@ -421,6 +426,10 @@ public final class Singleplayer {
 				status = "Load a non-empty structure and set an anchor first.";
 				return;
 			}
+			if (buildOnTop != null && buildOnTop.getValBoolean() && !anchorSettled) {
+				settleAnchorOnTop();
+			}
+			anchorSettled = true;
 			if (anchor.getY() < 0 || anchor.getY() + sizeY > 256) {
 				status = "Build stopped: the structure would extend outside the world height.";
 				return;
@@ -433,6 +442,7 @@ public final class Singleplayer {
 				}
 			}
 			completedBlocks = new boolean[blocks.size()];
+			pendingUntilTick = new int[blocks.size()];
 			completedBlockCount = 0;
 			plannedBlockIndex.clear();
 			for (int i = 0; i < blocks.size(); i++) {
@@ -443,6 +453,40 @@ public final class Singleplayer {
 			placementBudget = 0.0D;
 			building = true;
 			status = "Building at " + getPlaceSpeed() + " blocks/sec; move near the preview to continue.";
+		}
+
+		/**
+		 * Raises the anchor so the blueprint's base layer sits on top of whatever solid
+		 * blocks already exist under its footprint, instead of being buried in terrain
+		 * (buried positions are "blocked" and the build never finishes).
+		 */
+		private void settleAnchorOnTop() {
+			int highestSolid = -1;
+			int scanTop = Math.min(255, anchor.getY() + sizeY + 8);
+			int scanBottom = Math.max(0, anchor.getY() - 24);
+			for (PlannedBlock block : blocks) {
+				if (block.pos.getY() != 0) {
+					continue;
+				}
+				int worldX = anchor.getX() + block.pos.getX();
+				int worldZ = anchor.getZ() + block.pos.getZ();
+				if (!mc.world.isBlockLoaded(new BlockPos(worldX, anchor.getY(), worldZ))) {
+					continue;
+				}
+				for (int y = scanTop; y >= scanBottom; y--) {
+					if (y <= highestSolid) {
+						break;
+					}
+					if (!mc.world.getBlockState(new BlockPos(worldX, y, worldZ)).getMaterial().isReplaceable()) {
+						highestSolid = y;
+						break;
+					}
+				}
+			}
+			int settledY = highestSolid + 1;
+			if (highestSolid >= 0 && settledY != anchor.getY() && settledY + sizeY <= 256) {
+				anchor = new BlockPos(anchor.getX(), settledY, anchor.getZ());
+			}
 		}
 
 		public void stopBuild() {
@@ -517,6 +561,7 @@ public final class Singleplayer {
 				}
 			}
 			anchor = candidate;
+			anchorSettled = false;
 			status = "Build anchor set to " + formatPosition(anchor) + ".";
 		}
 
@@ -547,6 +592,7 @@ public final class Singleplayer {
 				materials.put(key, count == null ? 1 : count + 1);
 			}
 			completedBlocks = null;
+			pendingUntilTick = null;
 			completedBlockCount = 0;
 			plannedBlockIndex.clear();
 			status = "Blueprint rotated to " + rotationDegrees + " degrees clockwise.";
@@ -687,6 +733,7 @@ public final class Singleplayer {
 		private void placeNextBlock() {
 			if (completedBlocks == null || completedBlocks.length != blocks.size()) {
 				completedBlocks = new boolean[blocks.size()];
+				pendingUntilTick = new int[blocks.size()];
 				completedBlockCount = 0;
 			}
 			if (plannedBlockIndex.size() != blocks.size()) {
@@ -703,7 +750,7 @@ public final class Singleplayer {
 			int localCenterX = MathHelper.floor(mc.player.posX) - anchor.getX();
 			int localCenterY = MathHelper.floor(mc.player.posY) - anchor.getY();
 			int localCenterZ = MathHelper.floor(mc.player.posZ) - anchor.getZ();
-			for (int y = localCenterY - 6; y <= localCenterY + 6; y++) {
+			for (int y = localCenterY - 6; y <= localCenterY + 8; y++) {
 				for (int z = localCenterZ - 6; z <= localCenterZ + 6; z++) {
 					for (int x = localCenterX - 6; x <= localCenterX + 6; x++) {
 						Integer index = plannedBlockIndex.get(packPosition(x, y, z));
@@ -718,6 +765,10 @@ public final class Singleplayer {
 				public int compare(Integer first, Integer second) {
 					BlockPos firstPos = anchor.add(blocks.get(first).pos);
 					BlockPos secondPos = anchor.add(blocks.get(second).pos);
+					int byLayer = Integer.compare(firstPos.getY(), secondPos.getY());
+					if (byLayer != 0) {
+						return byLayer;
+					}
 					return Double.compare(mc.player.getDistanceSqToCenter(firstPos),
 							mc.player.getDistanceSqToCenter(secondPos));
 				}
@@ -733,7 +784,7 @@ public final class Singleplayer {
 				int targetY = anchor.getY() + planned.pos.getY();
 				int targetZ = anchor.getZ() + planned.pos.getZ();
 				double dx = targetX + 0.5D - mc.player.posX;
-				double dy = targetY + 0.5D - mc.player.posY;
+				double dy = targetY + 0.5D - (mc.player.posY + mc.player.getEyeHeight());
 				double dz = targetZ + 0.5D - mc.player.posZ;
 				if (dx * dx + dy * dy + dz * dz > 36.0D) {
 					continue;
@@ -749,9 +800,15 @@ public final class Singleplayer {
 				}
 
 				IBlockState existing = mc.world.getBlockState(target);
-					if (matchesPlannedState(existing, planned.state)) {
+				int now = mc.player.ticksExisted;
+				if (matchesPlannedState(existing, planned.state)
+						|| (pendingUntilTick[index] != 0 && existing.getBlock() == planned.state.getBlock())) {
 					completedBlocks[index] = true;
 					completedBlockCount++;
+					continue;
+				}
+				if (pendingUntilTick[index] > now) {
+					waitingStatus = "Waiting for the world to confirm a placed block.";
 					continue;
 				}
 				if (!existing.getMaterial().isReplaceable()) {
@@ -767,9 +824,17 @@ public final class Singleplayer {
 				if (placementBudget < 1.0D) {
 					continue;
 				}
-				mc.player.inventory.currentItem = slot;
-				ItemStack held = mc.player.getHeldItemMainhand();
+				EnumHand hand = EnumHand.MAIN_HAND;
+				ItemStack held;
+				if (slot == OFFHAND_SLOT) {
+					hand = EnumHand.OFF_HAND;
+					held = mc.player.getHeldItemOffhand();
+				} else {
+					mc.player.inventory.currentItem = slot;
+					held = mc.player.getHeldItemMainhand();
+				}
 				boolean attemptedPlacement = false;
+				placeFailReason = "";
 				EnumFacing preferredFace = getPreferredPlacementFace(planned.state);
 				EnumFacing plannedFacing = getStateFacing(planned.state);
 				float originalYaw = mc.player.rotationYaw;
@@ -778,11 +843,11 @@ public final class Singleplayer {
 				}
 				try {
 					if (preferredFace != null) {
-						attemptedPlacement = tryPlaceOnFace(target, preferredFace, held);
+						attemptedPlacement = tryPlaceOnFace(target, preferredFace, held, hand);
 					}
 					if (!attemptedPlacement) {
 						for (EnumFacing direction : EnumFacing.values()) {
-							if (direction != preferredFace && tryPlaceOnFace(target, direction, held)) {
+							if (direction != preferredFace && tryPlaceOnFace(target, direction, held, hand)) {
 								attemptedPlacement = true;
 								break;
 							}
@@ -793,11 +858,14 @@ public final class Singleplayer {
 				}
 
 				if (!attemptedPlacement) {
-					waitingStatus = "Move closer to a blueprint block with a reachable support face.";
+					String what = Block.REGISTRY.getNameForObject(planned.state.getBlock()).getResourcePath();
+					waitingStatus = "Can't place " + what + " @" + targetX + "," + targetY + "," + targetZ + ": "
+							+ (placeFailReason.isEmpty() ? "no solid block next to it to place against"
+									: placeFailReason);
 					continue;
 				}
-				completedBlocks[index] = true;
-				completedBlockCount++;
+				// not done until the world actually shows the block; a rejected click is retried
+				pendingUntilTick[index] = Math.max(1, now + 10);
 				placedThisTick++;
 				placementBudget -= 1.0D;
 			}
@@ -820,14 +888,34 @@ public final class Singleplayer {
 			return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | (long) (y & 0xFFF);
 		}
 
-		private boolean tryPlaceOnFace(BlockPos target, EnumFacing direction, ItemStack held) {
+		private String placeFailReason = "";
+
+		private void noteFail(String reason) {
+			if (placeFailReason.isEmpty()) {
+				placeFailReason = reason;
+			}
+		}
+
+		private String blockLabel(BlockPos pos) {
+			ResourceLocation name = Block.REGISTRY.getNameForObject(mc.world.getBlockState(pos).getBlock());
+			return (name == null ? "?" : name.getResourcePath()) + " @" + pos.getX() + "," + pos.getY() + ","
+					+ pos.getZ();
+		}
+
+		private boolean tryPlaceOnFace(BlockPos target, EnumFacing direction, ItemStack held, EnumHand hand) {
 			BlockPos support = target.offset(direction.getOpposite());
-			if (!mc.world.isBlockLoaded(support)
-					|| mc.world.getBlockState(support).getMaterial().isReplaceable()
-					|| mc.player.getDistanceSqToCenter(support) > PLACE_REACH_SQUARED
-					|| (held.getItem() instanceof ItemBlock
-							&& !((ItemBlock) held.getItem()).canPlaceBlockOnSide(
-									mc.world, support, direction, mc.player, held))) {
+			if (!mc.world.isBlockLoaded(support) || mc.world.getBlockState(support).getMaterial().isReplaceable()) {
+				return false;
+			}
+			// from here on the support block is a real block, so a failure is worth reporting
+			if (mc.player.getDistanceSqToCenter(support) > PLACE_REACH_SQUARED) {
+				noteFail("support " + blockLabel(support) + " is out of reach, walk closer");
+				return false;
+			}
+			if (held.getItem() instanceof ItemBlock && !((ItemBlock) held.getItem()).canPlaceBlockOnSide(mc.world,
+					support, direction, mc.player, held)) {
+				noteFail("game refuses the block on " + blockLabel(support)
+						+ " (an entity or you are standing in the spot?)");
 				return false;
 			}
 
@@ -838,8 +926,12 @@ public final class Singleplayer {
 			boolean wasSneaking = mc.player.isSneaking();
 			mc.player.setSneaking(true);
 			try {
-				return mc.playerController.processRightClickBlock(mc.player, mc.world, support, direction, hitVec,
-						EnumHand.MAIN_HAND) == EnumActionResult.SUCCESS;
+				EnumActionResult result = mc.playerController.processRightClickBlock(mc.player, mc.world, support,
+						direction, hitVec, hand);
+				if (result != EnumActionResult.SUCCESS) {
+					noteFail("right-click on " + blockLabel(support) + " returned " + result);
+				}
+				return result == EnumActionResult.SUCCESS;
 			} finally {
 				mc.player.setSneaking(wasSneaking);
 			}
@@ -874,23 +966,46 @@ public final class Singleplayer {
 			return null;
 		}
 
+		private static final int OFFHAND_SLOT = 9;
+
+		/** Blocks whose placing item is not the plain ItemBlock (string -> tripwire, etc). */
+		public static Item getPlacementItem(Block block) {
+			if (block == Blocks.TRIPWIRE) {
+				return Items.STRING;
+			}
+			if (block == Blocks.REDSTONE_WIRE) {
+				return Items.REDSTONE;
+			}
+			if (block == Blocks.REEDS) {
+				return Items.REEDS;
+			}
+			if (block == Blocks.CAULDRON) {
+				return Items.CAULDRON;
+			}
+			return Item.getItemFromBlock(block);
+		}
+
+		private boolean stackMatches(ItemStack stack, Item requiredItem, PlannedBlock planned) {
+			if (stack == null || stack.func_190926_b() || stack.getItem() != requiredItem) {
+				return false;
+			}
+			return !(requiredItem instanceof ItemBlock && requiredItem.getHasSubtypes()
+					&& !matchesItemVariant((ItemBlock) requiredItem, stack, planned.state));
+		}
+
+		/** Returns hotbar slot 0-8, OFFHAND_SLOT for the off hand, or -1 if the item is missing. */
 		private int findHotbarSlot(PlannedBlock planned) {
-			Item requiredItem = Item.getItemFromBlock(planned.state.getBlock());
-			if (requiredItem == Items.AIR) {
+			Item requiredItem = getPlacementItem(planned.state.getBlock());
+			if (requiredItem == null || requiredItem == Items.AIR) {
 				return -1;
 			}
 			for (int slot = 0; slot < 9; ++slot) {
-				ItemStack stack = mc.player.inventory.getStackInSlot(slot);
-				if (stack == null || stack.func_190926_b() || stack.getItem() != requiredItem) {
-					continue;
-				}
-				if (requiredItem instanceof ItemBlock && requiredItem.getHasSubtypes()
-						&& !matchesItemVariant((ItemBlock) requiredItem, stack, planned.state)) {
-					continue;
-				}
-				if (requiredItem instanceof ItemBlockSpecial || requiredItem instanceof ItemBlock) {
+				if (stackMatches(mc.player.inventory.getStackInSlot(slot), requiredItem, planned)) {
 					return slot;
 				}
+			}
+			if (stackMatches(mc.player.getHeldItemOffhand(), requiredItem, planned)) {
+				return OFFHAND_SLOT;
 			}
 			return -1;
 		}
@@ -1027,6 +1142,7 @@ public final class Singleplayer {
 				}
 			});
 			blocks.clear();
+			anchorSettled = false;
 			blocks.addAll(loadedBlocks);
 			materials.clear();
 			materials.putAll(loadedMaterials);
@@ -1105,6 +1221,7 @@ public final class Singleplayer {
 			}
 
 			blocks.clear();
+			anchorSettled = false;
 			blocks.addAll(loadedBlocks);
 			materials.clear();
 			materials.putAll(loadedMaterials);
